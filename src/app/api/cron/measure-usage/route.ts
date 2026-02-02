@@ -12,8 +12,9 @@ import { logger } from '@/lib/utils/logger';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret for security
+    // Verify cron secret (support Authorization header or query param)
     const authHeader = request.headers.get("authorization");
+    const querySecret = request.nextUrl.searchParams.get("secret");
     const cronSecret = process.env.CRON_SECRET;
 
     if (!cronSecret) {
@@ -23,8 +24,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Check authorization
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    const isAuthorized =
+      authHeader === `Bearer ${cronSecret}` ||
+      querySecret === cronSecret;
+
+    if (!isAuthorized) {
       return NextResponse.json(
         { error: "Unauthorized. Invalid cron secret." },
         { status: 401 }
