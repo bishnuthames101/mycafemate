@@ -23,12 +23,12 @@ interface VercelDomainResponse {
  * @returns true if domain was added (or already exists), false on failure
  */
 export async function addDomainToVercel(domain: string): Promise<boolean> {
-  const token = process.env.VERCEL_API_TOKEN;
-  const projectId = process.env.VERCEL_PROJECT_ID;
+  const token = process.env.DEPLOY_VERCEL_TOKEN;
+  const projectId = process.env.DEPLOY_VERCEL_PROJECT_ID;
 
   if (!token || !projectId) {
     log.warn(
-      "VERCEL_API_TOKEN or VERCEL_PROJECT_ID not configured. Skipping domain registration."
+      "DEPLOY_VERCEL_TOKEN or DEPLOY_VERCEL_PROJECT_ID not configured. Skipping domain registration."
     );
     return false;
   }
