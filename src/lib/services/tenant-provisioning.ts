@@ -18,6 +18,7 @@ import {
 } from "./database-manager";
 import { isValidTenantSlug } from "@/lib/utils/tenant-resolver";
 import { encryptDatabaseUrl } from "@/lib/prisma-multi-tenant";
+import { addDomainToVercel } from "./vercel-domain";
 import { createLogger } from "@/lib/utils/logger";
 
 const log = createLogger('[Provisioning]');
@@ -175,6 +176,23 @@ export async function provisionNewTenant(
         },
       },
     });
+
+    // ============= STEP 8: REGISTER VERCEL DOMAIN =============
+    // Non-blocking: failure here does NOT fail tenant creation
+    if (process.env.NODE_ENV === "production") {
+      const domain =
+        process.env.SUPER_ADMIN_DOMAIN?.replace("admin.", "") ||
+        "mycafemate.com";
+      const tenantDomain = `${input.slug}.${domain}`;
+
+      log.info(`Registering Vercel domain: ${tenantDomain}`);
+      const domainAdded = await addDomainToVercel(tenantDomain);
+      if (!domainAdded) {
+        log.warn(
+          `Vercel domain registration failed for ${tenantDomain}. Add it manually in the Vercel dashboard.`
+        );
+      }
+    }
 
     log.info(`Tenant provisioned successfully: ${input.slug}`);
 
