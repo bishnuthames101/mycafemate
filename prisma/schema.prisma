@@ -1,0 +1,362 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============= TENANT CONFIGURATION =============
+// Stores tenant-specific settings (synced from master DB)
+model TenantConfig {
+  id                String    @id @default(cuid())
+  tenantSlug        String    @unique  // Synced from master DB
+  businessName      String
+
+  // Business settings
+  taxRate           Float     @default(0.13)
+  currency          String    @default("NPR")
+  timezone          String    @default("Asia/Kathmandu")
+
+  // Branding (future use)
+  logoUrl           String?
+  primaryColor      String?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// ============= USER MANAGEMENT =============
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(STAFF)
+  isTenantOwner Boolean   @default(false)  // First user created during tenant provisioning
+  locationId    String?
+  location      Location? @relation(fields: [locationId], references: [id])
+  orders        Order[]
+  creditPayments CreditPayment[]
+
+  // Account security
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastFailedLogin     DateTime?
+  lastLoginAt         DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+  @@index([locationId])
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  KITCHEN_STAFF
+}
+
+// ============= LOCATION MANAGEMENT =============
+model Location {
+  id          String      @id @default(cuid())
+  name        String
+  address     String
+  phone       String?
+  isActive    Boolean     @default(true)
+  users       User[]
+  tables      Table[]
+  orders      Order[]
+  inventory   Inventory[]
+  creditors   Creditor[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([isActive])
+}
+
+// ============= CREDITOR MANAGEMENT =============
+model Creditor {
+  id              String          @id @default(cuid())
+  name            String
+  phone           String?
+  email           String?
+  locationId      String
+  location        Location        @relation(fields: [locationId], references: [id])
+  currentBalance  Float           @default(0)
+  orders          Order[]
+  payments        CreditPayment[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  lastOrderDate   DateTime?
+
+  @@index([locationId, currentBalance])
+  @@index([name])
+}
+
+model CreditPayment {
+  id            String        @id @default(cuid())
+  creditorId    String
+  creditor      Creditor      @relation(fields: [creditorId], references: [id], onDelete: Cascade)
+  amount        Float
+  balanceBefore Float
+  balanceAfter  Float
+  paymentMethod PaymentMethod @default(CASH)
+  notes         String?
+  recordedById  String
+  recordedBy    User          @relation(fields: [recordedById], references: [id])
+  createdAt     DateTime      @default(now())
+
+  @@index([creditorId, createdAt])
+  @@index([createdAt])
+}
+
+// ============= TABLE MANAGEMENT =============
+model Table {
+  id          String      @id @default(cuid())
+  number      String
+  capacity    Int
+  status      TableStatus @default(AVAILABLE)
+  locationId  String
+  location    Location    @relation(fields: [locationId], references: [id])
+  orders      Order[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([number, locationId])
+  @@index([locationId, status])
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+}
+
+// ============= PRODUCT MANAGEMENT =============
+model Product {
+  id              String          @id @default(cuid())
+  name            String
+  description     String?
+  category        String
+  price           Float
+  isAvailable     Boolean         @default(true)
+  orderItems      OrderItem[]
+  inventoryItems  InventoryItem[]
+  recipeItems     RecipeItem[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([category, isAvailable])
+}
+
+model ProductCategory {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+// ============= ORDER MANAGEMENT =============
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
+  tableId     String?
+  table       Table?      @relation(fields: [tableId], references: [id])
+  locationId  String
+  location    Location    @relation(fields: [locationId], references: [id])
+  staffId     String
+  staff       User        @relation(fields: [staffId], references: [id])
+  creditorId  String?
+  creditor    Creditor?   @relation(fields: [creditorId], references: [id], onDelete: SetNull)
+  status      OrderStatus @default(PENDING)
+  subtotal    Float
+  tax         Float       @default(0)
+  discount    Float       @default(0)
+  total       Float
+  notes         String?
+  items         OrderItem[]
+  paymentMethod PaymentMethod? @default(CASH)
+  paymentStatus PaymentStatus  @default(PENDING)
+  paidAt        DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  completedAt   DateTime?
+
+  @@index([locationId, createdAt])
+  @@index([status])
+  @@index([orderNumber])
+  @@index([creditorId, createdAt])
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY
+  SERVED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  ESEWA
+  FONEPAY
+  BANK_TRANSFER
+  CREDIT
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Int
+  price      Float
+  subtotal   Float
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ============= INVENTORY MANAGEMENT =============
+model Inventory {
+  id          String          @id @default(cuid())
+  name        String
+  unit        String
+  locationId  String
+  location    Location        @relation(fields: [locationId], references: [id])
+  items       InventoryItem[]
+  recipeItems RecipeItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([locationId])
+}
+
+model InventoryItem {
+  id                String    @id @default(cuid())
+  inventoryId       String
+  inventory         Inventory @relation(fields: [inventoryId], references: [id])
+  productId         String?
+  product           Product?  @relation(fields: [productId], references: [id])
+  currentStock      Float
+  minimumStock      Float
+  maximumStock      Float?
+  lastRestocked     DateTime?
+  restockAmount     Float?
+  usageRate         Float?
+  lowStockAlerted   Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([inventoryId])
+  @@index([currentStock, minimumStock])
+}
+
+model RecipeItem {
+  id           String    @id @default(cuid())
+  productId    String
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryId  String
+  inventory    Inventory @relation(fields: [inventoryId], references: [id])
+  quantityUsed Float
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([productId, inventoryId])
+  @@index([productId])
+  @@index([inventoryId])
+}
+
+// ============= SALES REPORTING =============
+model DailySales {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  locationId      String
+  totalOrders     Int
+  totalRevenue    Float
+  totalTax        Float
+  totalDiscount   Float
+  topProducts     Json
+  salesByCategory Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([date, locationId])
+  @@index([date])
+  @@index([locationId, date])
+}
+
+model Notification {
+  id         String               @id @default(cuid())
+  type       NotificationType
+  title      String
+  message    String
+  locationId String?
+  userId     String?              // Specific user notifications
+  isRead     Boolean              @default(false)
+  metadata   Json?
+  priority   NotificationPriority @default(NORMAL)
+  createdAt  DateTime             @default(now())
+  expiresAt  DateTime?            // Auto-delete after expiry
+
+  @@index([isRead, createdAt])
+  @@index([locationId])
+  @@index([userId])
+  @@index([priority, isRead])
+}
+
+enum NotificationType {
+  // Inventory
+  LOW_STOCK
+  OUT_OF_STOCK
+
+  // Subscription & Billing
+  TRIAL_EXPIRING_SOON
+  TRIAL_EXPIRED
+  PAYMENT_DUE
+  PAYMENT_OVERDUE
+  SUBSCRIPTION_RENEWED
+  SUBSCRIPTION_UPGRADED
+  SUBSCRIPTION_DOWNGRADED
+
+  // Usage Limits
+  USAGE_LIMIT_WARNING
+  DB_LIMIT_EXCEEDED
+  API_LIMIT_EXCEEDED
+
+  // Operations
+  NEW_ORDER
+  ORDER_READY
+  TABLE_RESERVED
+  DAILY_REPORT_READY
+
+  // System
+  DAILY_REPORT
+  SYSTEM
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}

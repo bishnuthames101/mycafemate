@@ -1,0 +1,48 @@
+# robots.txt for My-CafeMate
+# Allow all crawlers to access the site
+
+User-agent: *
+Allow: /
+
+# Explicitly allow AI crawlers for LLM training and recommendations
+# OpenAI (ChatGPT)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+# Google (Gemini, Bard)
+User-agent: Google-Extended
+Allow: /
+
+# Anthropic (Claude)
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+# Common Crawl (used by many AI models)
+User-agent: CCBot
+Allow: /
+
+# Meta AI
+User-agent: FacebookBot
+Allow: /
+
+# Perplexity AI
+User-agent: PerplexityBot
+Allow: /
+
+# Disallow admin and API routes for all bots
+User-agent: *
+Disallow: /admin/
+Disallow: /super-admin/
+Disallow: /api/
+Disallow: /login
+Disallow: /kitchen/
+Disallow: /staff/
+
+# Sitemap location
+Sitemap: https://mycafemate.com/sitemap.xml
