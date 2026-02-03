@@ -103,8 +103,8 @@ export default withAuth(
     }
 
     // ============= TENANT USER ROUTES =============
-    // Prevent super admin from accessing tenant routes
-    if (token?.role === "SUPER_ADMIN" && !path.startsWith("/super-admin")) {
+    // Prevent super admin from accessing tenant routes (but allow super admin API routes)
+    if (token?.role === "SUPER_ADMIN" && !path.startsWith("/super-admin") && !path.startsWith("/api/super-admin")) {
       return NextResponse.redirect(new URL("/super-admin", req.url));
     }
 
