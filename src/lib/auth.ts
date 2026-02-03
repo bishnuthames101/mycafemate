@@ -241,15 +241,17 @@ export const authOptions: NextAuthOptions = {
   },
   cookies: {
     sessionToken: {
-      name: `next-auth.session-token`,
+      // In production (HTTPS), NextAuth middleware expects __Secure- prefix
+      name: process.env.NODE_ENV === "production"
+        ? "__Secure-next-auth.session-token"
+        : "next-auth.session-token",
       options: {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        // Don't set domain in development - let browser handle it
-        // In production, use env var or default to .mycafemate.com
+        // Share cookie across all subdomains (admin, tenants, www)
         domain: process.env.NODE_ENV === "production"
-          ? (process.env.COOKIE_DOMAIN || "mycafemate.com")
+          ? (process.env.COOKIE_DOMAIN || "mycafemate.com").replace(/^\./, "")
           : undefined,
         secure: process.env.NODE_ENV === "production",
       },
