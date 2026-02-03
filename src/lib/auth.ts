@@ -249,7 +249,7 @@ export const authOptions: NextAuthOptions = {
         // Don't set domain in development - let browser handle it
         // In production, use env var or default to .mycafemate.com
         domain: process.env.NODE_ENV === "production"
-          ? (process.env.COOKIE_DOMAIN || ".mycafemate.com")
+          ? (process.env.COOKIE_DOMAIN || "mycafemate.com")
           : undefined,
         secure: process.env.NODE_ENV === "production",
       },
