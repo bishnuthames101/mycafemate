@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdminNav } from "@/components/layout/admin-nav";
+import { InactivityLogout } from "@/components/auth/inactivity-logout";
 
 export default async function AdminLayout({
   children,
@@ -16,6 +17,7 @@ export default async function AdminLayout({
 
   return (
     <>
+      <InactivityLogout timeoutMinutes={15} />
       <AdminNav user={session.user} />
       {children}
     </>

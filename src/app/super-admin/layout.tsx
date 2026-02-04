@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import Link from "next/link";
 import SignOutButton from "@/components/layout/SignOutButton";
 import SuperAdminHeader from "@/components/layout/SuperAdminHeader";
+import { InactivityLogout } from "@/components/auth/inactivity-logout";
 
 export default async function SuperAdminLayout({
   children,
@@ -19,6 +20,7 @@ export default async function SuperAdminLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <InactivityLogout timeoutMinutes={4} />
       {/* Header */}
       <SuperAdminHeader userEmail={session.user.email || ""} />
 

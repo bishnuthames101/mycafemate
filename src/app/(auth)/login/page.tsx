@@ -16,11 +16,16 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  // Detect if this is super admin domain
+  // Detect if this is super admin domain and check for inactivity logout
   useEffect(() => {
     if (typeof window !== "undefined") {
       const host = window.location.host;
       setIsSuperAdmin(host.startsWith("admin."));
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("reason") === "inactivity") {
+        setError("You were logged out due to inactivity.");
+      }
     }
   }, []);
 
