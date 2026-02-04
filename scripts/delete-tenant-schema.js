@@ -38,7 +38,7 @@ async function deleteTenantSchema() {
 
     // Drop the schema
     console.log(`Dropping schema ${schemaName}...`);
-    await client.query(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`);
+    await client.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
     console.log(`✅ Schema ${schemaName} deleted`);
 
     await client.end();

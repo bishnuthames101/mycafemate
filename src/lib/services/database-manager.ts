@@ -66,8 +66,8 @@ async function createPostgresDatabaseMode(tenantSlug: string): Promise<void> {
 
     await adminClient.connect();
 
-    // Create database using SQL
-    await adminClient.query(`CREATE DATABASE ${dbName}`);
+    // Create database using SQL (quote identifier for safety)
+    await adminClient.query(`CREATE DATABASE "${dbName}"`);
 
     await adminClient.end();
     logger.info(`Database created: ${dbName}`);
@@ -112,11 +112,11 @@ async function createPostgresSchema(tenantSlug: string): Promise<void> {
 
     await adminClient.connect();
 
-    // Create schema
-    await adminClient.query(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`);
+    // Create schema (quote identifier to handle special characters)
+    await adminClient.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-    // Grant permissions to the user
-    await adminClient.query(`GRANT ALL ON SCHEMA ${schemaName} TO ${user}`);
+    // Grant permissions to the user (quote username - Supabase usernames contain dots)
+    await adminClient.query(`GRANT ALL ON SCHEMA "${schemaName}" TO "${user}"`);
 
     await adminClient.end();
     logger.info(`Schema created: ${schemaName}`);
