@@ -115,8 +115,13 @@ async function createPostgresSchema(tenantSlug: string): Promise<void> {
     // Create schema (quote identifier to handle special characters)
     await adminClient.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
 
-    // Grant permissions to the user (quote username - Supabase usernames contain dots)
-    await adminClient.query(`GRANT ALL ON SCHEMA "${schemaName}" TO "${user}"`);
+    // Get the actual database role name (Supabase pooler usernames like
+    // "postgres.projectref" differ from the real role which is just "postgres")
+    const roleResult = await adminClient.query(`SELECT current_user`);
+    const dbRole = roleResult.rows[0].current_user;
+
+    // Grant permissions using the real database role
+    await adminClient.query(`GRANT ALL ON SCHEMA "${schemaName}" TO "${dbRole}"`);
 
     await adminClient.end();
     logger.info(`Schema created: ${schemaName}`);
