@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { OrderStatus, PaymentMethod } from "@prisma/client";
 
-// CUID validation helper
+// ID validation helper (accepts cuid, cuid2, uuid, and other common ID formats)
 const cuidSchema = z
   .string()
-  .regex(/^c[a-z0-9]{24}$/i, "Invalid ID format");
+  .min(1, "ID is required");
 
 export const orderItemSchema = z.object({
   productId: cuidSchema,

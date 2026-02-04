@@ -20,7 +20,7 @@ export const createCreditorSchema = z.object({
     .pipe(z.string().email("Invalid email address").optional()),
   locationId: z
     .string()
-    .regex(/^c[a-z0-9]{24}$/i, "Invalid location ID"),
+    .min(1, "Location ID is required"),
 });
 
 // Update creditor schema (for editing creditor details)
@@ -66,7 +66,7 @@ export const creditorSearchSchema = z.object({
     .max(100, "Search query must not exceed 100 characters"),
   locationId: z
     .string()
-    .regex(/^c[a-z0-9]{24}$/i, "Invalid location ID"),
+    .min(1, "Location ID is required"),
 });
 
 // TypeScript types

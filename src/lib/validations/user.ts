@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { Role } from "@prisma/client";
 
-// CUID validation helper
+// ID validation helper
 const cuidSchema = z
   .string()
-  .regex(/^c[a-z0-9]{24}$/i, "Invalid ID format");
+  .min(1, "ID is required");
 
 // Email validation
 export const emailSchema = z

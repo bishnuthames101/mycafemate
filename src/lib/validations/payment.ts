@@ -15,7 +15,7 @@ export const updatePaymentSchema = z
     paymentStatus: PaymentStatus,
     creditorId: z
       .string()
-      .regex(/^c[a-z0-9]{24}$/i, "Invalid creditor ID")
+      .min(1, "Creditor ID is required")
       .optional(),
   })
   .refine(
