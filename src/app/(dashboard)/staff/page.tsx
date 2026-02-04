@@ -2,7 +2,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import { redirect } from "next/navigation";
-import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardList, Coffee, Users, UtensilsCrossed } from "lucide-react";
@@ -20,51 +19,56 @@ export default async function StaffDashboard() {
     redirect("/login");
   }
 
-  const prisma = await getTenantPrisma(tenantSlug);
+  let prisma;
+  try {
+    prisma = await getTenantPrisma(tenantSlug);
+  } catch (error: any) {
+    return (
+      <div className="min-h-screen bg-cream-50 p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <h2 className="text-xl font-bold text-red-600 mb-2">Unable to connect</h2>
+              <p className="text-muted-foreground">{error.message}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch quick stats
-  const activeOrders = await prisma.order.count({
-    where: {
-      locationId: session.user.locationId || "",
-      status: {
-        in: ["PENDING", "PREPARING", "READY", "SERVED"],
+  const [activeOrders, occupiedTables, totalTables, recentOrders] = await Promise.all([
+    prisma.order.count({
+      where: {
+        locationId: session.user.locationId || "",
+        status: { in: ["PENDING", "PREPARING", "READY", "SERVED"] },
       },
-    },
-  });
-
-  const occupiedTables = await prisma.table.count({
-    where: {
-      locationId: session.user.locationId || "",
-      status: "OCCUPIED",
-    },
-  });
-
-  const totalTables = await prisma.table.count({
-    where: {
-      locationId: session.user.locationId || "",
-    },
-  });
-
-  const recentOrders = await prisma.order.findMany({
-    where: {
-      locationId: session.user.locationId || "",
-      status: {
-        in: ["PENDING", "PREPARING", "READY", "SERVED"],
+    }),
+    prisma.table.count({
+      where: {
+        locationId: session.user.locationId || "",
+        status: "OCCUPIED",
       },
-    },
-    include: {
-      table: true,
-      items: {
-        include: {
-          product: true,
-        },
+    }),
+    prisma.table.count({
+      where: {
+        locationId: session.user.locationId || "",
       },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 5,
-  });
+    }),
+    prisma.order.findMany({
+      where: {
+        locationId: session.user.locationId || "",
+        status: { in: ["PENDING", "PREPARING", "READY", "SERVED"] },
+      },
+      include: {
+        table: true,
+        items: { include: { product: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+  ]);
 
   const stats = [
     {
