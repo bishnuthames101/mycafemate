@@ -3,18 +3,14 @@
  *
  * Handles low-level database operations for tenant provisioning:
  * - Creating PostgreSQL databases
- * - Running Prisma migrations
+ * - Creating tenant schema tables via raw SQL
  * - Seeding initial tenant data
  */
 
 import { PrismaClient } from "@prisma/client";
-import { exec } from "child_process";
-import { promisify } from "util";
 import * as bcrypt from "bcryptjs";
 import { Client } from "pg";
 import { logger } from '@/lib/utils/logger';
-
-const execAsync = promisify(exec);
 
 /**
  * Create a new PostgreSQL database OR schema for a tenant
@@ -131,28 +127,356 @@ async function createPostgresSchema(tenantSlug: string): Promise<void> {
 }
 
 /**
- * Run Prisma schema push on a tenant database/schema
+ * Create all tenant tables via raw SQL
  *
- * For schema-per-tenant, we use `prisma db push` to directly apply the schema
- * instead of `migrate deploy` which is designed for single-database migrations.
+ * Replaces `npx prisma db push` which cannot run on Vercel serverless.
+ * Creates enums, tables, indexes, and constraints matching the Prisma schema.
  *
  * @param databaseUrl - Full connection string for the tenant database/schema
  */
 export async function runPrismaMigrations(databaseUrl: string): Promise<void> {
+  // Parse the schema name from the URL
+  const urlObj = new URL(databaseUrl.replace("postgresql://", "http://"));
+  const schemaName = urlObj.searchParams.get("schema") || "public";
+
+  const adminUrl = process.env.POSTGRES_ADMIN_URL || process.env.MASTER_DATABASE_URL;
+  if (!adminUrl) {
+    throw new Error("POSTGRES_ADMIN_URL not configured");
+  }
+
+  const parsedUrl = new URL(adminUrl.replace("postgresql://", "http://"));
+  const client = new Client({
+    user: parsedUrl.username,
+    password: decodeURIComponent(parsedUrl.password),
+    host: parsedUrl.hostname === 'localhost' ? '127.0.0.1' : parsedUrl.hostname,
+    port: parseInt(parsedUrl.port || "5432"),
+    database: parsedUrl.pathname.replace('/', ''),
+  });
+
   try {
-    logger.info(`Applying schema to tenant database...`);
+    await client.connect();
+    logger.info(`Applying schema tables to ${schemaName}...`);
 
-    // Use prisma db push for schema-per-tenant (creates tables directly from schema)
-    // --skip-generate: Don't regenerate Prisma Client
-    // --force-reset: Drop and recreate the database schema (safe for new tenant provisioning)
-    await execAsync('npx prisma db push --skip-generate --force-reset --accept-data-loss', {
-      env: { ...process.env, DATABASE_URL: databaseUrl },
-    });
+    // Use the tenant schema as search path
+    await client.query(`SET search_path TO "${schemaName}"`);
 
-    logger.info(`Schema applied successfully`);
+    // Create enums (use IF NOT EXISTS pattern with DO block)
+    const enums = [
+      { name: "Role", values: ["ADMIN", "STAFF", "KITCHEN_STAFF"] },
+      { name: "TableStatus", values: ["AVAILABLE", "OCCUPIED", "RESERVED", "CLEANING"] },
+      { name: "OrderStatus", values: ["PENDING", "PREPARING", "READY", "SERVED", "COMPLETED", "CANCELLED"] },
+      { name: "PaymentMethod", values: ["CASH", "ESEWA", "FONEPAY", "BANK_TRANSFER", "CREDIT"] },
+      { name: "PaymentStatus", values: ["PENDING", "PAID", "REFUNDED"] },
+      { name: "NotificationType", values: [
+        "LOW_STOCK", "OUT_OF_STOCK",
+        "TRIAL_EXPIRING_SOON", "TRIAL_EXPIRED", "PAYMENT_DUE", "PAYMENT_OVERDUE",
+        "SUBSCRIPTION_RENEWED", "SUBSCRIPTION_UPGRADED", "SUBSCRIPTION_DOWNGRADED",
+        "USAGE_LIMIT_WARNING", "DB_LIMIT_EXCEEDED", "API_LIMIT_EXCEEDED",
+        "NEW_ORDER", "ORDER_READY", "TABLE_RESERVED", "DAILY_REPORT_READY",
+        "DAILY_REPORT", "SYSTEM"
+      ]},
+      { name: "NotificationPriority", values: ["LOW", "NORMAL", "HIGH", "URGENT"] },
+    ];
+
+    for (const e of enums) {
+      const values = e.values.map(v => `'${v}'`).join(", ");
+      await client.query(`
+        DO $$ BEGIN
+          CREATE TYPE "${schemaName}"."${e.name}" AS ENUM (${values});
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$;
+      `);
+    }
+
+    // Create tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."TenantConfig" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "tenantSlug" TEXT NOT NULL,
+        "businessName" TEXT NOT NULL,
+        "taxRate" DOUBLE PRECISION NOT NULL DEFAULT 0.13,
+        "currency" TEXT NOT NULL DEFAULT 'NPR',
+        "timezone" TEXT NOT NULL DEFAULT 'Asia/Kathmandu',
+        "logoUrl" TEXT,
+        "primaryColor" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "TenantConfig_pkey" PRIMARY KEY ("id")
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "TenantConfig_tenantSlug_key" ON "${schemaName}"."TenantConfig"("tenantSlug");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."Location" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "name" TEXT NOT NULL,
+        "address" TEXT NOT NULL,
+        "phone" TEXT,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Location_pkey" PRIMARY KEY ("id")
+      );
+      CREATE INDEX IF NOT EXISTS "Location_isActive_idx" ON "${schemaName}"."Location"("isActive");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."User" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "name" TEXT NOT NULL,
+        "email" TEXT NOT NULL,
+        "password" TEXT NOT NULL,
+        "role" "${schemaName}"."Role" NOT NULL DEFAULT 'STAFF',
+        "isTenantOwner" BOOLEAN NOT NULL DEFAULT false,
+        "locationId" TEXT,
+        "failedLoginAttempts" INTEGER NOT NULL DEFAULT 0,
+        "lockedUntil" TIMESTAMP(3),
+        "lastFailedLogin" TIMESTAMP(3),
+        "lastLoginAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "User_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "User_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "${schemaName}"."Location"("id") ON DELETE SET NULL ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "${schemaName}"."User"("email");
+      CREATE INDEX IF NOT EXISTS "User_email_idx" ON "${schemaName}"."User"("email");
+      CREATE INDEX IF NOT EXISTS "User_locationId_idx" ON "${schemaName}"."User"("locationId");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."Creditor" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "name" TEXT NOT NULL,
+        "phone" TEXT,
+        "email" TEXT,
+        "locationId" TEXT NOT NULL,
+        "currentBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "lastOrderDate" TIMESTAMP(3),
+        CONSTRAINT "Creditor_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "Creditor_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "${schemaName}"."Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS "Creditor_locationId_currentBalance_idx" ON "${schemaName}"."Creditor"("locationId", "currentBalance");
+      CREATE INDEX IF NOT EXISTS "Creditor_name_idx" ON "${schemaName}"."Creditor"("name");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."CreditPayment" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "creditorId" TEXT NOT NULL,
+        "amount" DOUBLE PRECISION NOT NULL,
+        "balanceBefore" DOUBLE PRECISION NOT NULL,
+        "balanceAfter" DOUBLE PRECISION NOT NULL,
+        "paymentMethod" "${schemaName}"."PaymentMethod" NOT NULL DEFAULT 'CASH',
+        "notes" TEXT,
+        "recordedById" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "CreditPayment_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "CreditPayment_creditorId_fkey" FOREIGN KEY ("creditorId") REFERENCES "${schemaName}"."Creditor"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "CreditPayment_recordedById_fkey" FOREIGN KEY ("recordedById") REFERENCES "${schemaName}"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS "CreditPayment_creditorId_createdAt_idx" ON "${schemaName}"."CreditPayment"("creditorId", "createdAt");
+      CREATE INDEX IF NOT EXISTS "CreditPayment_createdAt_idx" ON "${schemaName}"."CreditPayment"("createdAt");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."Table" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "number" TEXT NOT NULL,
+        "capacity" INTEGER NOT NULL,
+        "status" "${schemaName}"."TableStatus" NOT NULL DEFAULT 'AVAILABLE',
+        "locationId" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Table_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "Table_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "${schemaName}"."Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "Table_number_locationId_key" ON "${schemaName}"."Table"("number", "locationId");
+      CREATE INDEX IF NOT EXISTS "Table_locationId_status_idx" ON "${schemaName}"."Table"("locationId", "status");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."Product" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "name" TEXT NOT NULL,
+        "description" TEXT,
+        "category" TEXT NOT NULL,
+        "price" DOUBLE PRECISION NOT NULL,
+        "isAvailable" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
+      );
+      CREATE INDEX IF NOT EXISTS "Product_category_isAvailable_idx" ON "${schemaName}"."Product"("category", "isAvailable");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."ProductCategory" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "name" TEXT NOT NULL,
+        "slug" TEXT NOT NULL,
+        "sortOrder" INTEGER NOT NULL DEFAULT 0,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "ProductCategory_pkey" PRIMARY KEY ("id")
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "ProductCategory_slug_key" ON "${schemaName}"."ProductCategory"("slug");
+      CREATE INDEX IF NOT EXISTS "ProductCategory_isActive_sortOrder_idx" ON "${schemaName}"."ProductCategory"("isActive", "sortOrder");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."Order" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "orderNumber" TEXT NOT NULL,
+        "tableId" TEXT,
+        "locationId" TEXT NOT NULL,
+        "staffId" TEXT NOT NULL,
+        "creditorId" TEXT,
+        "status" "${schemaName}"."OrderStatus" NOT NULL DEFAULT 'PENDING',
+        "subtotal" DOUBLE PRECISION NOT NULL,
+        "tax" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "discount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "total" DOUBLE PRECISION NOT NULL,
+        "notes" TEXT,
+        "paymentMethod" "${schemaName}"."PaymentMethod" DEFAULT 'CASH',
+        "paymentStatus" "${schemaName}"."PaymentStatus" NOT NULL DEFAULT 'PENDING',
+        "paidAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "completedAt" TIMESTAMP(3),
+        CONSTRAINT "Order_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "Order_tableId_fkey" FOREIGN KEY ("tableId") REFERENCES "${schemaName}"."Table"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+        CONSTRAINT "Order_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "${schemaName}"."Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+        CONSTRAINT "Order_staffId_fkey" FOREIGN KEY ("staffId") REFERENCES "${schemaName}"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+        CONSTRAINT "Order_creditorId_fkey" FOREIGN KEY ("creditorId") REFERENCES "${schemaName}"."Creditor"("id") ON DELETE SET NULL ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "Order_orderNumber_key" ON "${schemaName}"."Order"("orderNumber");
+      CREATE INDEX IF NOT EXISTS "Order_locationId_createdAt_idx" ON "${schemaName}"."Order"("locationId", "createdAt");
+      CREATE INDEX IF NOT EXISTS "Order_status_idx" ON "${schemaName}"."Order"("status");
+      CREATE INDEX IF NOT EXISTS "Order_orderNumber_idx" ON "${schemaName}"."Order"("orderNumber");
+      CREATE INDEX IF NOT EXISTS "Order_creditorId_createdAt_idx" ON "${schemaName}"."Order"("creditorId", "createdAt");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."OrderItem" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "orderId" TEXT NOT NULL,
+        "productId" TEXT NOT NULL,
+        "quantity" INTEGER NOT NULL,
+        "price" DOUBLE PRECISION NOT NULL,
+        "subtotal" DOUBLE PRECISION NOT NULL,
+        "notes" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "OrderItem_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "${schemaName}"."Order"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "${schemaName}"."Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS "OrderItem_orderId_idx" ON "${schemaName}"."OrderItem"("orderId");
+      CREATE INDEX IF NOT EXISTS "OrderItem_productId_idx" ON "${schemaName}"."OrderItem"("productId");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."Inventory" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "name" TEXT NOT NULL,
+        "unit" TEXT NOT NULL,
+        "locationId" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "Inventory_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "Inventory_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "${schemaName}"."Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS "Inventory_locationId_idx" ON "${schemaName}"."Inventory"("locationId");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."InventoryItem" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "inventoryId" TEXT NOT NULL,
+        "productId" TEXT,
+        "currentStock" DOUBLE PRECISION NOT NULL,
+        "minimumStock" DOUBLE PRECISION NOT NULL,
+        "maximumStock" DOUBLE PRECISION,
+        "lastRestocked" TIMESTAMP(3),
+        "restockAmount" DOUBLE PRECISION,
+        "usageRate" DOUBLE PRECISION,
+        "lowStockAlerted" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "InventoryItem_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "InventoryItem_inventoryId_fkey" FOREIGN KEY ("inventoryId") REFERENCES "${schemaName}"."Inventory"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+        CONSTRAINT "InventoryItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "${schemaName}"."Product"("id") ON DELETE SET NULL ON UPDATE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS "InventoryItem_inventoryId_idx" ON "${schemaName}"."InventoryItem"("inventoryId");
+      CREATE INDEX IF NOT EXISTS "InventoryItem_currentStock_minimumStock_idx" ON "${schemaName}"."InventoryItem"("currentStock", "minimumStock");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."RecipeItem" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "productId" TEXT NOT NULL,
+        "inventoryId" TEXT NOT NULL,
+        "quantityUsed" DOUBLE PRECISION NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "RecipeItem_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "RecipeItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "${schemaName}"."Product"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "RecipeItem_inventoryId_fkey" FOREIGN KEY ("inventoryId") REFERENCES "${schemaName}"."Inventory"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "RecipeItem_productId_inventoryId_key" ON "${schemaName}"."RecipeItem"("productId", "inventoryId");
+      CREATE INDEX IF NOT EXISTS "RecipeItem_productId_idx" ON "${schemaName}"."RecipeItem"("productId");
+      CREATE INDEX IF NOT EXISTS "RecipeItem_inventoryId_idx" ON "${schemaName}"."RecipeItem"("inventoryId");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."DailySales" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "date" DATE NOT NULL,
+        "locationId" TEXT NOT NULL,
+        "totalOrders" INTEGER NOT NULL,
+        "totalRevenue" DOUBLE PRECISION NOT NULL,
+        "totalTax" DOUBLE PRECISION NOT NULL,
+        "totalDiscount" DOUBLE PRECISION NOT NULL,
+        "topProducts" JSONB NOT NULL,
+        "salesByCategory" JSONB NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "DailySales_pkey" PRIMARY KEY ("id")
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "DailySales_date_locationId_key" ON "${schemaName}"."DailySales"("date", "locationId");
+      CREATE INDEX IF NOT EXISTS "DailySales_date_idx" ON "${schemaName}"."DailySales"("date");
+      CREATE INDEX IF NOT EXISTS "DailySales_locationId_date_idx" ON "${schemaName}"."DailySales"("locationId", "date");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."Notification" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "type" "${schemaName}"."NotificationType" NOT NULL,
+        "title" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "locationId" TEXT,
+        "userId" TEXT,
+        "isRead" BOOLEAN NOT NULL DEFAULT false,
+        "metadata" JSONB,
+        "priority" "${schemaName}"."NotificationPriority" NOT NULL DEFAULT 'NORMAL',
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "expiresAt" TIMESTAMP(3),
+        CONSTRAINT "Notification_pkey" PRIMARY KEY ("id")
+      );
+      CREATE INDEX IF NOT EXISTS "Notification_isRead_createdAt_idx" ON "${schemaName}"."Notification"("isRead", "createdAt");
+      CREATE INDEX IF NOT EXISTS "Notification_locationId_idx" ON "${schemaName}"."Notification"("locationId");
+      CREATE INDEX IF NOT EXISTS "Notification_userId_idx" ON "${schemaName}"."Notification"("userId");
+      CREATE INDEX IF NOT EXISTS "Notification_priority_isRead_idx" ON "${schemaName}"."Notification"("priority", "isRead");
+    `);
+
+    logger.info(`Schema tables applied successfully to ${schemaName}`);
   } catch (error: any) {
-    logger.error(`Schema push failed: ${error.message}`, error instanceof Error ? error : undefined);
+    logger.error(`Schema creation failed: ${error.message}`, error instanceof Error ? error : undefined);
     throw new Error(`Failed to apply schema: ${error.message}`);
+  } finally {
+    await client.end();
   }
 }
 
