@@ -12,7 +12,6 @@ import {
   seedTenantDatabase,
   generateDatabaseName,
   generateDatabaseUrl,
-  testDatabaseConnection,
   isValidDatabaseName,
   TenantCredentials,
 } from "./database-manager";
@@ -114,12 +113,6 @@ export async function provisionNewTenant(
 
     // ============= STEP 3: GENERATE DATABASE URL =============
     const databaseUrl = generateDatabaseUrl(input.slug);
-
-    // Test connection
-    const connectionWorks = await testDatabaseConnection(databaseUrl);
-    if (!connectionWorks) {
-      throw new Error("Database created but connection test failed");
-    }
 
     // ============= STEP 4: RUN MIGRATIONS =============
     log.info(`Running migrations...`);

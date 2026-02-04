@@ -499,9 +499,14 @@ export async function seedTenantDatabase(
     businessName: string;
   }
 ): Promise<TenantCredentials> {
+  // Append connection_limit=1 to minimize connections on Supabase free tier
+  const seedUrl = databaseUrl.includes('connection_limit')
+    ? databaseUrl
+    : databaseUrl + (databaseUrl.includes('?') ? '&' : '?') + 'connection_limit=1';
+
   const prisma = new PrismaClient({
     datasources: {
-      db: { url: databaseUrl },
+      db: { url: seedUrl },
     },
   });
 
