@@ -79,7 +79,8 @@ export default function AdminNewOrderPage() {
     const res = await fetch(`/api/admin/users?role=STAFF&locationId=${locationId}`);
     if (res.ok) {
       const data = await res.json();
-      setStaffUsers(data);
+      // API returns { users: [...] } wrapper
+      setStaffUsers(Array.isArray(data) ? data : data.users || []);
     } else {
       // If endpoint doesn't exist, use current admin as fallback
       setStaffUsers([]);
