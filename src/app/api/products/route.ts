@@ -103,13 +103,13 @@ export async function POST(request: NextRequest) {
             throw new Error("Each recipe item must have a quantityUsed greater than 0");
           }
 
-          // Verify inventory item exists
-          const inventoryItem = await tx.inventoryItem.findUnique({
+          // Verify inventory exists (RecipeItem.inventoryId references Inventory, not InventoryItem)
+          const inventory = await tx.inventory.findUnique({
             where: { id: recipe.inventoryId },
             select: { id: true },
           });
-          if (!inventoryItem) {
-            throw new Error(`Inventory item '${recipe.inventoryId}' not found`);
+          if (!inventory) {
+            throw new Error(`Inventory '${recipe.inventoryId}' not found`);
           }
         }
 
