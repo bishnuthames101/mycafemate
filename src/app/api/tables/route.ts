@@ -88,6 +88,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (error.code === "P2002") {
+      return NextResponse.json(
+        { error: "A table with this number already exists at this location" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: "Failed to create table" },
       { status: 500 }
