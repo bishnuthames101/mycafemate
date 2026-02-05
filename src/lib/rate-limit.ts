@@ -109,17 +109,17 @@ function parseWindow(window: Duration): number {
   }
 }
 
-// Login rate limit: 5 attempts per 15 minutes
-export const loginRateLimit = createRateLimiter(5, "15 m", "login");
+// Login rate limit: 10 attempts per 15 minutes
+export const loginRateLimit = createRateLimiter(10, "15 m", "login");
 
-// API rate limit: 100 requests per minute
-export const apiRateLimit = createRateLimiter(100, "1 m", "api");
+// API rate limit: 300 requests per minute (increased for Supabase Pro)
+export const apiRateLimit = createRateLimiter(300, "1 m", "api");
 
-// Super admin actions: 20 per minute
-export const adminRateLimit = createRateLimiter(20, "1 m", "admin");
+// Super admin actions: 100 per minute (increased for Supabase Pro)
+export const adminRateLimit = createRateLimiter(100, "1 m", "admin");
 
-// Payment/sensitive operations: 10 per minute
-export const sensitiveRateLimit = createRateLimiter(10, "1 m", "sensitive");
+// Payment/sensitive operations: 30 per minute
+export const sensitiveRateLimit = createRateLimiter(30, "1 m", "sensitive");
 
 /**
  * Helper function to check rate limit and return response

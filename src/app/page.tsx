@@ -107,7 +107,7 @@ export default function Home() {
             "name": "How much does My-CafeMate cost?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "My-CafeMate uses usage-based pricing starting at NPR 1,200/month. The base plan includes 100 MB database storage, 10 GB bandwidth, 1,000 orders per month, and 3 staff accounts (1 Admin, 1 Waiter, 1 Kitchen). You only pay for what you use beyond these limits."
+              "text": "My-CafeMate uses usage-based pricing starting at NPR 1,200/month. The base plan includes 500 MB database storage, 10 GB bandwidth, 1,000 orders per month, and 3 staff accounts (1 Admin, 1 Waiter, 1 Kitchen). You only pay for what you use beyond these limits."
             }
           },
           {
@@ -287,7 +287,7 @@ export default function Home() {
                   <ul className="space-y-3">
                     <li className="flex items-start text-sm">
                       <span className="text-amber-600 mr-3 mt-0.5 flex-shrink-0 font-bold">✓</span>
-                      <span className="text-gray-700"><strong>100 MB</strong> Database Storage</span>
+                      <span className="text-gray-700"><strong>500 MB</strong> Database Storage</span>
                     </li>
                     <li className="flex items-start text-sm">
                       <span className="text-amber-600 mr-3 mt-0.5 flex-shrink-0 font-bold">✓</span>
@@ -326,11 +326,11 @@ export default function Home() {
                   <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-700">Extra Storage</span>
-                      <span className="font-semibold text-gray-900">NPR 5/GB</span>
+                      <span className="font-semibold text-gray-900">NPR 25/GB</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-700">Extra Bandwidth</span>
-                      <span className="font-semibold text-gray-900">NPR 10/GB</span>
+                      <span className="font-semibold text-gray-900">NPR 15/GB</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-700">Extra Orders</span>

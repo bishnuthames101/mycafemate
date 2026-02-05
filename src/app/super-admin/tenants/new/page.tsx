@@ -414,7 +414,7 @@ export default function NewTenantPage() {
                   <strong className="text-2xl">NPR 1,200/month</strong> base fee + usage overages
                 </p>
                 <ul className="text-xs text-blue-700 space-y-1">
-                  <li>✓ 100 MB Database Storage</li>
+                  <li>✓ 500 MB Database Storage</li>
                   <li>✓ 10 GB Bandwidth/month</li>
                   <li>✓ 1,000 Orders/month</li>
                   <li>✓ 3 Staff Accounts (1 Admin, 1 Waiter, 1 Kitchen)</li>

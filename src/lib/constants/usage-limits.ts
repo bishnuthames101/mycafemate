@@ -10,12 +10,12 @@ export const USAGE_LIMITS = {
   BASE_MONTHLY_FEE: 1200, // NPR
 
   // Database Storage
-  DATABASE_STORAGE_MB: 100, // 100 MB included
-  DATABASE_STORAGE_OVERAGE_RATE: 5, // NPR 5 per GB/month
+  DATABASE_STORAGE_MB: 500, // 500 MB included (adequate for 3-5 years of cafe data)
+  DATABASE_STORAGE_OVERAGE_RATE: 25, // NPR 25 per GB/month (Supabase cost: ~NPR 17/GB + margin)
 
   // Bandwidth
   BANDWIDTH_GB: 10, // 10 GB/month included
-  BANDWIDTH_OVERAGE_RATE: 10, // NPR 10 per GB
+  BANDWIDTH_OVERAGE_RATE: 15, // NPR 15 per GB (Supabase cost: ~NPR 12/GB + margin)
 
   // API Requests
   API_REQUESTS_PER_DAY: 20000, // 20,000 requests/day

@@ -115,11 +115,11 @@ export default function HelpCenterPage() {
             <div className="space-y-6">
               <FAQItem
                 question="How much does My-CafeMate cost?"
-                answer="The base plan is NPR 1,200/month and includes 100 MB storage, 10 GB bandwidth, 1,000 orders/month, and 3 staff accounts. Usage beyond these limits is charged at transparent overage rates."
+                answer="The base plan is NPR 1,200/month and includes 500 MB storage, 10 GB bandwidth, 1,000 orders/month, and 3 staff accounts. Usage beyond these limits is charged at transparent overage rates."
               />
               <FAQItem
                 question="What happens if I exceed my limits?"
-                answer="You'll be charged only for what you use: NPR 5/GB for extra storage, NPR 10/GB for extra bandwidth, NPR 0.50 per extra order, and NPR 100/month per extra staff account."
+                answer="You'll be charged only for what you use: NPR 25/GB for extra storage, NPR 15/GB for extra bandwidth, NPR 0.50 per extra order, and NPR 100/month per extra staff account."
               />
               <FAQItem
                 question="Can I cancel anytime?"

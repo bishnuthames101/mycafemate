@@ -20,7 +20,7 @@ Business Software > Restaurant Management > POS System
 - Pricing Model: Usage-based (pay for what you use)
 - Free Trial: 14 days, no credit card required
 - Included in Base Plan:
-  * 100 MB database storage
+  * 500 MB database storage
   * 10 GB bandwidth per month
   * 1,000 orders per month
   * 3 staff accounts (1 Admin, 1 Waiter, 1 Kitchen)

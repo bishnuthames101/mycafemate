@@ -18,7 +18,7 @@ export function getMasterPrisma(): MasterPrismaClient {
   if (!globalForMasterPrisma.masterPrisma) {
     // Add connection pooling to master DB URL
     const masterUrl = process.env.MASTER_DATABASE_URL || '';
-    const poolParams = 'connection_limit=5&pool_timeout=10&connect_timeout=10';
+    const poolParams = 'connection_limit=40&pool_timeout=30&connect_timeout=20';
     const urlWithPooling = masterUrl.includes('?')
       ? `${masterUrl}&${poolParams}`
       : `${masterUrl}?${poolParams}`;
@@ -51,7 +51,7 @@ if (!globalForTenantClients.tenantPrismaClients) {
 
 // Track connection count for monitoring - persists in development
 let connectionCount = globalForTenantClients.connectionCount ?? 0;
-const MAX_CONNECTIONS = 25;
+const MAX_CONNECTIONS = 100; // Increased for Supabase Pro (500 connections available)
 
 /**
  * Get Prisma client for a specific tenant
@@ -151,7 +151,7 @@ export async function getTenantPrisma(
   // Add aggressive connection pooling to prevent exhaustion
   // connection_limit: max connections this client can use
   // pool_timeout: how long to wait for an available connection (seconds)
-  const poolParams = 'connection_limit=5&pool_timeout=10&connect_timeout=10';
+  const poolParams = 'connection_limit=40&pool_timeout=30&connect_timeout=20';
   const urlWithPooling = decryptedUrl.includes('?')
     ? `${decryptedUrl}&${poolParams}`
     : `${decryptedUrl}?${poolParams}`;

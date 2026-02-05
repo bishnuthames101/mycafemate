@@ -65,7 +65,7 @@ model Tenant {
   maxUsers          Int                @default(5)
 
   // Usage Limits (based on subscription tier)
-  maxDbSizeMB       Int                @default(100)       // Database size limit in MB
+  maxDbSizeMB       Int                @default(500)       // Database size limit in MB
   maxApiRequests    Int                @default(10000)     // API requests per day
   maxStorageMB      Int                @default(500)       // File storage limit in MB
 
