@@ -249,10 +249,8 @@ export const authOptions: NextAuthOptions = {
         httpOnly: true,
         sameSite: "lax",
         path: "/",
-        // Share cookie across all subdomains (admin, tenants, www)
-        domain: process.env.NODE_ENV === "production"
-          ? (process.env.COOKIE_DOMAIN || "mycafemate.com").replace(/^\./, "")
-          : undefined,
+        // Each subdomain gets its own cookie (no domain = subdomain-specific)
+        // This prevents session collision when logged into multiple tenants
         secure: process.env.NODE_ENV === "production",
       },
     },
