@@ -299,11 +299,13 @@ export async function deleteTenant(
     }
 
     if (hardDelete) {
-      // Hard delete: Drop database permanently
+      // Hard delete: Drop database or schema permanently
+      const multiTenancyMode = process.env.MULTI_TENANCY_MODE || 'DATABASE';
       const dbName = generateDatabaseName(tenant.slug);
+      const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
 
       try {
-        // Get admin database URL (connect to postgres database)
+        // Get admin database URL
         const adminUrl = process.env.POSTGRES_ADMIN_URL || process.env.MASTER_DATABASE_URL;
 
         if (!adminUrl) {
@@ -311,30 +313,55 @@ export async function deleteTenant(
         }
 
         const { Client } = require("pg");
-        const client = new Client({
-          connectionString: adminUrl,
-          database: "postgres", // Connect to postgres database to drop tenant database
-        });
 
-        await client.connect();
+        if (multiTenancyMode === 'SCHEMA') {
+          // SCHEMA mode (Supabase production): Drop the tenant's schema
+          const url = new URL(adminUrl.replace("postgresql://", "http://"));
+          const database = url.pathname.replace('/', '') || 'postgres';
 
-        // Terminate all connections to the tenant database
-        await client.query(
-          `SELECT pg_terminate_backend(pid)
-           FROM pg_stat_activity
-           WHERE datname = $1 AND pid <> pg_backend_pid()`,
-          [dbName]
-        );
+          const client = new Client({
+            user: url.username,
+            password: decodeURIComponent(url.password),
+            host: url.hostname,
+            port: parseInt(url.port || "5432"),
+            database: database, // Connect to the shared database
+          });
 
-        // Drop the database
-        await client.query(`DROP DATABASE IF EXISTS "${dbName}"`);
+          await client.connect();
 
-        await client.end();
+          // Drop the schema and ALL its contents (tables, data, indexes, etc.)
+          await client.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
 
-        log.info(`Database dropped: ${dbName}`);
+          await client.end();
+
+          log.info(`Schema dropped: ${schemaName}`);
+        } else {
+          // DATABASE mode (development): Drop the tenant's database
+          const client = new Client({
+            connectionString: adminUrl,
+            database: "postgres", // Connect to postgres database to drop tenant database
+          });
+
+          await client.connect();
+
+          // Terminate all connections to the tenant database
+          await client.query(
+            `SELECT pg_terminate_backend(pid)
+             FROM pg_stat_activity
+             WHERE datname = $1 AND pid <> pg_backend_pid()`,
+            [dbName]
+          );
+
+          // Drop the database
+          await client.query(`DROP DATABASE IF EXISTS "${dbName}"`);
+
+          await client.end();
+
+          log.info(`Database dropped: ${dbName}`);
+        }
       } catch (dbError: any) {
-        log.error(`Failed to drop database ${dbName}`, dbError instanceof Error ? dbError : undefined);
-        // Continue with master DB deletion even if database drop fails
+        log.error(`Failed to drop ${multiTenancyMode === 'SCHEMA' ? 'schema ' + schemaName : 'database ' + dbName}`, dbError instanceof Error ? dbError : undefined);
+        // Continue with master DB deletion even if database/schema drop fails
       }
 
       // Delete tenant record from master DB (cascades to related records)
