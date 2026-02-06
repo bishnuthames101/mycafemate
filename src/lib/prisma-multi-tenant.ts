@@ -17,8 +17,9 @@ const globalForMasterPrisma = globalThis as unknown as {
 export function getMasterPrisma(): MasterPrismaClient {
   if (!globalForMasterPrisma.masterPrisma) {
     // Add connection pooling to master DB URL
+    // Transaction mode (port 6543) releases connections quickly, so 10 is plenty
     const masterUrl = process.env.MASTER_DATABASE_URL || '';
-    const poolParams = 'connection_limit=5&pool_timeout=20&connect_timeout=15';
+    const poolParams = 'connection_limit=10&pool_timeout=30';
     const urlWithPooling = masterUrl.includes('?')
       ? `${masterUrl}&${poolParams}`
       : `${masterUrl}?${poolParams}`;
@@ -148,10 +149,10 @@ export async function getTenantPrisma(
   // Decrypt database URL
   const decryptedUrl = decryptDatabaseUrl(tenant.databaseUrl);
 
-  // Add aggressive connection pooling to prevent exhaustion
-  // connection_limit: max connections this client can use
-  // pool_timeout: how long to wait for an available connection (seconds)
-  const poolParams = 'connection_limit=5&pool_timeout=20&connect_timeout=15';
+  // Connection pooling for Transaction mode (port 6543)
+  // Transaction mode releases connections after each query, so they recycle fast
+  // 15 connections can handle hundreds of queries per second
+  const poolParams = 'connection_limit=15&pool_timeout=30';
   const urlWithPooling = decryptedUrl.includes('?')
     ? `${decryptedUrl}&${poolParams}`
     : `${decryptedUrl}?${poolParams}`;
