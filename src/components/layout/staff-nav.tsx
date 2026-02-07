@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import {
   Home,
   ClipboardList,
@@ -69,6 +70,7 @@ export function StaffNav({ user }: StaffNavProps) {
 
           {/* User Info & Logout */}
           <div className="hidden md:flex items-center space-x-4">
+            <NotificationBell locationId={user.locationId} />
             <div className="text-right">
               <p className="text-sm font-medium text-coffee-700">{user.name}</p>
               <p className="text-xs text-coffee-500">{user.role}</p>
@@ -87,13 +89,16 @@ export function StaffNav({ user }: StaffNavProps) {
             </Button>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2 rounded-md text-coffee-600 hover:bg-cream-100"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            <Menu className="h-6 w-6" />
-          </button>
+          {/* Mobile: Notification Bell + Menu */}
+          <div className="md:hidden flex items-center space-x-2">
+            <NotificationBell locationId={user.locationId} />
+            <button
+              className="p-2 rounded-md text-coffee-600 hover:bg-cream-100"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+          </div>
         </div>
 
         {/* Mobile Menu */}

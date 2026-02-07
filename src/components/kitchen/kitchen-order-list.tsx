@@ -27,11 +27,13 @@ interface OrderWithRelations {
 
 interface KitchenOrderListProps {
   orders: OrderWithRelations[];
-  onStatusUpdate: (orderId: string) => Promise<void>;
+  onMarkReady: (orderId: string) => Promise<void>;
+  onMarkServed: (orderId: string) => Promise<void>;
 }
 
-export function KitchenOrderList({ orders, onStatusUpdate }: KitchenOrderListProps) {
+export function KitchenOrderList({ orders, onMarkReady, onMarkServed }: KitchenOrderListProps) {
   const pendingOrders = orders.filter((o) => o.status === "PENDING");
+  const readyOrders = orders.filter((o) => o.status === "READY");
   const servedOrders = orders.filter((o) => o.status === "SERVED");
 
   return (
@@ -57,12 +59,35 @@ export function KitchenOrderList({ orders, onStatusUpdate }: KitchenOrderListPro
               <KitchenOrderCard
                 key={order.id}
                 order={order}
-                onMarkServed={onStatusUpdate}
+                onMarkReady={onMarkReady}
               />
             ))}
           </div>
         )}
       </section>
+
+      {/* Ready Orders Section */}
+      {readyOrders.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-green-700">
+              Ready for Pickup
+            </h2>
+            <span className="text-lg font-semibold px-4 py-2 bg-green-100 text-green-800 rounded-full">
+              {readyOrders.length}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            {readyOrders.map((order) => (
+              <KitchenOrderCard
+                key={order.id}
+                order={order}
+                onMarkServed={onMarkServed}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Served Orders Section */}
       {servedOrders.length > 0 && (

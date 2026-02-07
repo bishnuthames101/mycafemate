@@ -115,15 +115,15 @@ export async function PATCH(
 
     // KITCHEN_STAFF restrictions
     if (session.user.role === "KITCHEN_STAFF") {
-      // Can only update to SERVED status
-      if (status !== "SERVED") {
+      // Can update to READY or SERVED status
+      if (status !== "READY" && status !== "SERVED") {
         return NextResponse.json(
-          { error: "Kitchen staff can only mark orders as SERVED" },
+          { error: "Kitchen staff can only mark orders as READY or SERVED" },
           { status: 403 }
         );
       }
 
-      // Verify order belongs to their location and is PENDING
+      // Verify order belongs to their location
       const existingOrder = await prisma.order.findUnique({
         where: { id: params.id },
         select: { locationId: true, status: true },
@@ -140,10 +140,16 @@ export async function PATCH(
         );
       }
 
-      // Can only update from PENDING to SERVED
-      if (existingOrder.status !== "PENDING") {
+      // Valid transitions: PENDING→READY, PENDING→SERVED, READY→SERVED
+      const validTransitions: Record<string, string[]> = {
+        PENDING: ["READY", "SERVED"],
+        READY: ["SERVED"],
+      };
+
+      const allowedStatuses = validTransitions[existingOrder.status] || [];
+      if (!allowedStatuses.includes(status)) {
         return NextResponse.json(
-          { error: "Can only mark PENDING orders as SERVED" },
+          { error: `Cannot change from ${existingOrder.status} to ${status}` },
           { status: 400 }
         );
       }

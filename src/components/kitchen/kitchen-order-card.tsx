@@ -32,11 +32,22 @@ interface OrderWithRelations {
 
 interface KitchenOrderCardProps {
   order: OrderWithRelations;
+  onMarkReady?: (orderId: string) => Promise<void>;
   onMarkServed?: (orderId: string) => Promise<void>;
 }
 
-export function KitchenOrderCard({ order, onMarkServed }: KitchenOrderCardProps) {
+export function KitchenOrderCard({ order, onMarkReady, onMarkServed }: KitchenOrderCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleMarkReady = async () => {
+    if (!onMarkReady) return;
+    setIsUpdating(true);
+    try {
+      await onMarkReady(order.id);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const handleMarkServed = async () => {
     if (!onMarkServed) return;
@@ -51,6 +62,8 @@ export function KitchenOrderCard({ order, onMarkServed }: KitchenOrderCardProps)
   const orderAge = getOrderAge(new Date(order.createdAt));
   const priorityBorder = order.status === "PENDING"
     ? getPriorityBorderColor(new Date(order.createdAt))
+    : order.status === "READY"
+    ? "border-green-500"
     : "";
 
   return (
@@ -58,7 +71,8 @@ export function KitchenOrderCard({ order, onMarkServed }: KitchenOrderCardProps)
       className={cn(
         "border-2 transition-all",
         order.status === "PENDING" && `${priorityBorder} bg-yellow-50`,
-        order.status === "SERVED" && "border-green-400 bg-green-50"
+        order.status === "READY" && "border-green-400 bg-green-50",
+        order.status === "SERVED" && "border-gray-300 bg-gray-50"
       )}
     >
       <CardHeader className="pb-3">
@@ -100,8 +114,18 @@ export function KitchenOrderCard({ order, onMarkServed }: KitchenOrderCardProps)
           </div>
         )}
 
-        {/* Action Button */}
-        {order.status === "PENDING" && onMarkServed && (
+        {/* Action Buttons */}
+        {order.status === "PENDING" && onMarkReady && (
+          <Button
+            onClick={handleMarkReady}
+            disabled={isUpdating}
+            className="w-full bg-amber-600 hover:bg-amber-700 text-lg py-6 font-semibold"
+          >
+            {isUpdating ? "Updating..." : "Mark as Ready"}
+          </Button>
+        )}
+
+        {order.status === "READY" && onMarkServed && (
           <Button
             onClick={handleMarkServed}
             disabled={isUpdating}
@@ -111,8 +135,14 @@ export function KitchenOrderCard({ order, onMarkServed }: KitchenOrderCardProps)
           </Button>
         )}
 
+        {order.status === "READY" && !onMarkServed && (
+          <div className="text-center py-4 text-green-700 font-medium bg-green-100 rounded-lg">
+            Ready - Waiting for pickup
+          </div>
+        )}
+
         {order.status === "SERVED" && (
-          <div className="text-center py-4 text-green-700 font-medium">
+          <div className="text-center py-4 text-gray-600 font-medium">
             ✓ Served - Waiting for payment
           </div>
         )}

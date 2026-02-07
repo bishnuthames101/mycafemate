@@ -6,6 +6,7 @@ import { KitchenOrderList } from "@/components/kitchen/kitchen-order-list";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, RefreshCw } from "lucide-react";
 import { OrderStatus } from "@prisma/client";
+import { playNewOrderSound } from "@/lib/utils/notification-sound";
 
 const POLLING_INTERVAL = 7000; // 7 seconds
 
@@ -37,7 +38,24 @@ export default function KitchenOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const previousOrderCount = useRef(0);
+  const previousPendingCountRef = useRef(0);
+  const isFirstFetchRef = useRef(true);
+  const hasInteractedRef = useRef(false);
+
+  // Track user interaction to enable sound
+  useEffect(() => {
+    const handleInteraction = () => {
+      hasInteractedRef.current = true;
+    };
+
+    window.addEventListener("click", handleInteraction, { once: true });
+    window.addEventListener("touchstart", handleInteraction, { once: true });
+
+    return () => {
+      window.removeEventListener("click", handleInteraction);
+      window.removeEventListener("touchstart", handleInteraction);
+    };
+  }, []);
 
   const fetchOrders = useCallback(async () => {
     if (!session?.user?.locationId) {
@@ -47,7 +65,7 @@ export default function KitchenOrdersPage() {
 
     try {
       const res = await fetch(
-        `/api/orders?locationId=${session.user.locationId}&status=PENDING,SERVED`
+        `/api/orders?locationId=${session.user.locationId}&status=PENDING,READY,SERVED`
       );
 
       if (!res.ok) {
@@ -55,10 +73,18 @@ export default function KitchenOrdersPage() {
       }
 
       const data = await res.json();
+
+      // Count pending orders and play sound if new ones arrived
+      const pendingCount = data.filter((o: Order) => o.status === "PENDING").length;
+      if (!isFirstFetchRef.current && pendingCount > previousPendingCountRef.current && hasInteractedRef.current) {
+        playNewOrderSound();
+      }
+      previousPendingCountRef.current = pendingCount;
+      isFirstFetchRef.current = false;
+
       setOrders(data);
       setLastUpdate(new Date());
       setError(null);
-      previousOrderCount.current = data.length;
     } catch (err) {
       console.error("Error fetching orders:", err);
       setError("Failed to load orders");
@@ -82,11 +108,40 @@ export default function KitchenOrdersPage() {
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
+  const handleMarkReady = async (orderId: string) => {
+    // Optimistically update UI
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.id === orderId ? { ...order, status: "READY" as OrderStatus } : order
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "READY" }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update order");
+      }
+
+      // Refresh to get latest data
+      await fetchOrders();
+    } catch (err) {
+      console.error("Error updating order:", err);
+      // Revert on error
+      await fetchOrders();
+      alert("Failed to update order. Please try again.");
+    }
+  };
+
   const handleMarkServed = async (orderId: string) => {
     // Optimistically update UI
     setOrders((prev) =>
       prev.map((order) =>
-        order.id === orderId ? { ...order, status: "SERVED" } : order
+        order.id === orderId ? { ...order, status: "SERVED" as OrderStatus } : order
       )
     );
 
@@ -153,7 +208,11 @@ export default function KitchenOrdersPage() {
         )}
 
         {/* Orders List */}
-        <KitchenOrderList orders={orders} onStatusUpdate={handleMarkServed} />
+        <KitchenOrderList
+          orders={orders}
+          onMarkReady={handleMarkReady}
+          onMarkServed={handleMarkServed}
+        />
       </div>
     </div>
   );
