@@ -148,51 +148,54 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">User Management</CardTitle>
-          <CardDescription>
-            Manage user accounts and passwords for your cafe
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {users.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <h3 className="font-semibold text-gray-900">{user.name}</h3>
-                    <span className={`text-xs px-2 py-1 rounded ${getRoleBadgeColor(user.role)}`}>
-                      {getRoleLabel(user.role)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">{user.email}</p>
-                </div>
-                <Button
-                  onClick={() => handleChangePassword(user)}
-                  variant="outline"
-                  size="sm"
+    <div className="min-h-screen bg-cream-50 p-4 md:p-6 lg:p-8">
+      <div className="max-w-4xl mx-auto">
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl md:text-2xl">User Management</CardTitle>
+            <CardDescription className="text-sm">
+              Manage user accounts and passwords for your cafe
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 md:space-y-4">
+              {users.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 md:p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
                 >
-                  Change Password
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 truncate">{user.name}</h3>
+                      <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${getRoleBadgeColor(user.role)}`}>
+                        {getRoleLabel(user.role)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1 truncate">{user.email}</p>
+                  </div>
+                  <Button
+                    onClick={() => handleChangePassword(user)}
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto shrink-0"
+                  >
+                    Change Password
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Password Change Dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md mx-4 sm:mx-auto">
           <form onSubmit={handleSubmitPassword}>
             <DialogHeader>
-              <DialogTitle>Change Password</DialogTitle>
-              <DialogDescription>
-                Update password for {selectedUser?.name} ({selectedUser?.email})
+              <DialogTitle className="text-lg">Change Password</DialogTitle>
+              <DialogDescription className="text-sm">
+                Update password for {selectedUser?.name}
               </DialogDescription>
             </DialogHeader>
 
@@ -302,16 +305,17 @@ export default function UsersPage() {
               )}
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="flex-col-reverse sm:flex-row gap-2 sm:gap-0">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setShowPasswordDialog(false)}
                 disabled={submitting}
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
                 {submitting ? "Updating..." : "Update Password"}
               </Button>
             </DialogFooter>
