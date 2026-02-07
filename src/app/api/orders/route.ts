@@ -184,84 +184,68 @@ export async function POST(request: NextRequest) {
     const tax = calculateTax(subtotal, validatedData.includeTax);
     const total = subtotal + tax;
 
-    // Use transaction with retry for order number generation + order creation
-    // This prevents race conditions on duplicate order numbers
+    // Generate order number and create order with retry for race condition handling
+    // If two requests get the same count, P2002 (unique constraint) triggers retry
     const MAX_RETRIES = 3;
     let order;
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        order = await prisma.$transaction(async (tx) => {
-          // Generate order number inside transaction
-          const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-          const count = await tx.order.count({
-            where: {
-              orderNumber: {
-                startsWith: `ORD-${today}`,
-              },
+        // Generate order number based on count
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        const count = await prisma.order.count({
+          where: {
+            orderNumber: {
+              startsWith: `ORD-${today}`,
             },
-          });
-          const orderNumber = `ORD-${today}-${String(count + 1).padStart(4, "0")}`;
-
-          // Re-validate inventory inside transaction to prevent race condition
-          const txInventoryCheck = await validateInventoryForOrder(
-            tx,
-            validatedData.locationId,
-            validatedData.items.map(item => ({
-              productId: item.productId,
-              quantity: item.quantity,
-            }))
-          );
-
-          if (!txInventoryCheck.isValid) {
-            throw new Error(`Insufficient inventory: ${txInventoryCheck.message}`);
-          }
-
-          // Create order with items
-          const newOrder = await tx.order.create({
-            data: {
-              orderNumber,
-              tableId: validatedData.tableId,
-              locationId: validatedData.locationId,
-              staffId: validatedData.staffId,
-              subtotal,
-              tax,
-              total,
-              notes: validatedData.notes,
-              items: {
-                create: validatedData.items.map((item) => ({
-                  productId: item.productId,
-                  quantity: item.quantity,
-                  price: item.price,
-                  subtotal: item.price * item.quantity,
-                  notes: item.notes,
-                })),
-              },
-            },
-            include: {
-              location: true,
-              items: {
-                include: {
-                  product: true,
-                },
-              },
-              table: true,
-              staff: {
-                select: {
-                  name: true,
-                  email: true,
-                },
-              },
-            },
-          });
-
-          // Update table status
-          await tx.table.update({
-            where: { id: validatedData.tableId },
-            data: { status: "OCCUPIED" },
-          });
-
-          return newOrder;
+          },
         });
+        const orderNumber = `ORD-${today}-${String(count + 1).padStart(4, "0")}`;
+
+        // Create order with items (inventory already validated above)
+        order = await prisma.order.create({
+          data: {
+            orderNumber,
+            tableId: validatedData.tableId,
+            locationId: validatedData.locationId,
+            staffId: validatedData.staffId,
+            subtotal,
+            tax,
+            total,
+            notes: validatedData.notes,
+            items: {
+              create: validatedData.items.map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                price: item.price,
+                subtotal: item.price * item.quantity,
+                notes: item.notes,
+              })),
+            },
+          },
+          include: {
+            location: true,
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            table: true,
+            staff: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        });
+
+        // Update table status (separate query - non-critical if fails)
+        await prisma.table.update({
+          where: { id: validatedData.tableId },
+          data: { status: "OCCUPIED" },
+        });
+
         break; // Success - exit retry loop
       } catch (error: any) {
         // If unique constraint violation on orderNumber, retry

@@ -1,9 +1,6 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import { getTenantSlug } from "@/lib/utils/tenant-resolver";
-import { trackApiRequest } from "@/lib/services/api-usage-tracker";
 import { apiRateLimit, adminRateLimit, checkRateLimit } from "@/lib/rate-limit";
-import { logger } from "@/lib/utils/logger";
 
 export default withAuth(
   async function middleware(req) {
@@ -34,20 +31,6 @@ export default withAuth(
       const rateCheck = await checkRateLimit(limiter, identifier);
       if (!rateCheck.allowed && rateCheck.response) {
         return rateCheck.response;
-      }
-    }
-
-    // ============= API USAGE TRACKING =============
-    // Track API requests for tenant billing (exclude super admin)
-    // Note: Tracking happens asynchronously to avoid blocking requests
-    if (!isSuperAdminDomain && path.startsWith("/api/")) {
-      const tenantSlug = getTenantSlug();
-      if (tenantSlug) {
-        // Track API request asynchronously (don't await - let it run in background)
-        // This prevents slowing down every API request
-        trackApiRequest(tenantSlug, path).catch((error) => {
-          logger.error("API usage tracking error", error instanceof Error ? error : undefined);
-        });
       }
     }
 

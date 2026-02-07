@@ -86,44 +86,42 @@ export async function POST(request: NextRequest) {
     const { recipes, ...productData } = body;
     const validatedData = createProductSchema.parse(productData);
 
-    // Create product and recipes in a transaction
-    const product = await prisma.$transaction(async (tx) => {
-      const newProduct = await tx.product.create({
-        data: validatedData,
-      });
-
-      // Create recipe items if provided
-      if (recipes && Array.isArray(recipes) && recipes.length > 0) {
-        // Validate each recipe item
-        for (const recipe of recipes) {
-          if (!recipe.inventoryId || typeof recipe.inventoryId !== "string") {
-            throw new Error("Each recipe item must have a valid inventoryId");
-          }
-          if (!recipe.quantityUsed || typeof recipe.quantityUsed !== "number" || recipe.quantityUsed <= 0) {
-            throw new Error("Each recipe item must have a quantityUsed greater than 0");
-          }
-
-          // Verify inventory exists (RecipeItem.inventoryId references Inventory, not InventoryItem)
-          const inventory = await tx.inventory.findUnique({
-            where: { id: recipe.inventoryId },
-            select: { id: true },
-          });
-          if (!inventory) {
-            throw new Error(`Inventory '${recipe.inventoryId}' not found`);
-          }
+    // Validate recipes BEFORE creating anything
+    if (recipes && Array.isArray(recipes) && recipes.length > 0) {
+      for (const recipe of recipes) {
+        if (!recipe.inventoryId || typeof recipe.inventoryId !== "string") {
+          throw new Error("Each recipe item must have a valid inventoryId");
+        }
+        if (!recipe.quantityUsed || typeof recipe.quantityUsed !== "number" || recipe.quantityUsed <= 0) {
+          throw new Error("Each recipe item must have a quantityUsed greater than 0");
         }
 
-        await tx.recipeItem.createMany({
-          data: recipes.map((recipe: any) => ({
-            productId: newProduct.id,
-            inventoryId: recipe.inventoryId,
-            quantityUsed: recipe.quantityUsed,
-          })),
+        // Verify inventory exists
+        const inventory = await prisma.inventory.findUnique({
+          where: { id: recipe.inventoryId },
+          select: { id: true },
         });
+        if (!inventory) {
+          throw new Error(`Inventory '${recipe.inventoryId}' not found`);
+        }
       }
+    }
 
-      return newProduct;
+    // Create product
+    const product = await prisma.product.create({
+      data: validatedData,
     });
+
+    // Create recipe items if provided
+    if (recipes && Array.isArray(recipes) && recipes.length > 0) {
+      await prisma.recipeItem.createMany({
+        data: recipes.map((recipe: any) => ({
+          productId: product.id,
+          inventoryId: recipe.inventoryId,
+          quantityUsed: recipe.quantityUsed,
+        })),
+      });
+    }
 
     return NextResponse.json(product, { status: 201 });
   } catch (error: any) {

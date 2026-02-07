@@ -55,19 +55,22 @@ export async function PATCH(
         );
       }
 
-      // Use transaction to update order and creditor balance atomically
-      const updatedOrder = await prisma.$transaction(async (tx) => {
-        // Verify creditor exists
-        const creditor = await tx.creditor.findUnique({
-          where: { id: validatedData.creditorId },
-        });
+      // Verify creditor exists before any updates
+      const creditor = await prisma.creditor.findUnique({
+        where: { id: validatedData.creditorId },
+      });
 
-        if (!creditor) {
-          throw new Error("Creditor not found");
-        }
+      if (!creditor) {
+        return NextResponse.json(
+          { error: "Creditor not found" },
+          { status: 404 }
+        );
+      }
 
-        // Update order
-        const order = await tx.order.update({
+      // Update order and creditor balance using batch transaction
+      // Batch transactions work with Transaction mode pooler (single request)
+      const [updatedOrder] = await prisma.$transaction([
+        prisma.order.update({
           where: { id: orderId },
           data: {
             paymentMethod: "CREDIT",
@@ -95,19 +98,15 @@ export async function PATCH(
               },
             },
           },
-        });
-
-        // Update creditor balance
-        await tx.creditor.update({
+        }),
+        prisma.creditor.update({
           where: { id: validatedData.creditorId },
           data: {
-            currentBalance: { increment: order.total },
+            currentBalance: { increment: existingOrder.total },
             lastOrderDate: new Date(),
           },
-        });
-
-        return order;
-      });
+        }),
+      ]);
 
       // Revalidate relevant paths
       revalidatePath("/staff/orders");

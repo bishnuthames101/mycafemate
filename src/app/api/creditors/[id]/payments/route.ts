@@ -32,30 +32,40 @@ export async function POST(
 
     const { amount, paymentMethod, notes } = validatedData;
 
-    // Use transaction to ensure consistency
-    const result = await prisma.$transaction(async (tx) => {
-      const creditor = await tx.creditor.findUnique({
-        where: { id: params.id },
-      });
+    // Fetch creditor and validate before any updates
+    const creditor = await prisma.creditor.findUnique({
+      where: { id: params.id },
+    });
 
-      if (!creditor) {
-        throw new Error("Creditor not found");
-      }
+    if (!creditor) {
+      return NextResponse.json(
+        { error: "Creditor not found" },
+        { status: 404 }
+      );
+    }
 
-      // Staff can only record payments for their location
-      if (session.user.role === "STAFF" && session.user.locationId !== creditor.locationId) {
-        throw new Error("Access denied");
-      }
+    // Staff can only record payments for their location
+    if (session.user.role === "STAFF" && session.user.locationId !== creditor.locationId) {
+      return NextResponse.json(
+        { error: "Access denied" },
+        { status: 403 }
+      );
+    }
 
-      // Validate payment amount
-      if (amount > creditor.currentBalance) {
-        throw new Error("Payment amount exceeds outstanding balance");
-      }
+    // Validate payment amount
+    if (amount > creditor.currentBalance) {
+      return NextResponse.json(
+        { error: "Payment amount exceeds outstanding balance" },
+        { status: 400 }
+      );
+    }
 
-      const newBalance = creditor.currentBalance - amount;
+    const newBalance = creditor.currentBalance - amount;
 
-      // Create payment record
-      const payment = await tx.creditPayment.create({
+    // Create payment record and update balance using batch transaction
+    // Batch transactions work with Transaction mode pooler (single request)
+    const [payment, updatedCreditor] = await prisma.$transaction([
+      prisma.creditPayment.create({
         data: {
           creditorId: params.id,
           amount,
@@ -73,10 +83,8 @@ export async function POST(
             },
           },
         },
-      });
-
-      // Update creditor balance
-      const updatedCreditor = await tx.creditor.update({
+      }),
+      prisma.creditor.update({
         where: { id: params.id },
         data: { currentBalance: newBalance },
         include: {
@@ -87,17 +95,17 @@ export async function POST(
             },
           },
         },
-      });
+      }),
+    ]);
 
-      return {
-        payment,
-        creditor: updatedCreditor,
-        deleted: false,
-        message: newBalance === 0
-          ? "Payment recorded successfully. Balance fully cleared."
-          : "Payment recorded successfully.",
-      };
-    });
+    const result = {
+      payment,
+      creditor: updatedCreditor,
+      deleted: false,
+      message: newBalance === 0
+        ? "Payment recorded successfully. Balance fully cleared."
+        : "Payment recorded successfully.",
+    };
 
     return NextResponse.json(result);
   } catch (error: any) {

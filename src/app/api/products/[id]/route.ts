@@ -61,34 +61,30 @@ export async function PATCH(
     const { recipes, ...productData } = body;
     const validatedData = updateProductSchema.parse(productData);
 
-    // Update product and recipes in a transaction
-    const product = await prisma.$transaction(async (tx) => {
-      const updatedProduct = await tx.product.update({
-        where: { id: params.id },
-        data: validatedData,
+    // Update product
+    const product = await prisma.product.update({
+      where: { id: params.id },
+      data: validatedData,
+    });
+
+    // If recipes are provided, replace all existing recipes
+    if (recipes !== undefined) {
+      // Delete existing recipes
+      await prisma.recipeItem.deleteMany({
+        where: { productId: params.id },
       });
 
-      // If recipes are provided, replace all existing recipes
-      if (recipes !== undefined) {
-        // Delete existing recipes
-        await tx.recipeItem.deleteMany({
-          where: { productId: params.id },
+      // Create new recipes
+      if (Array.isArray(recipes) && recipes.length > 0) {
+        await prisma.recipeItem.createMany({
+          data: recipes.map((recipe: any) => ({
+            productId: params.id,
+            inventoryId: recipe.inventoryId,
+            quantityUsed: recipe.quantityUsed,
+          })),
         });
-
-        // Create new recipes
-        if (Array.isArray(recipes) && recipes.length > 0) {
-          await tx.recipeItem.createMany({
-            data: recipes.map((recipe: any) => ({
-              productId: params.id,
-              inventoryId: recipe.inventoryId,
-              quantityUsed: recipe.quantityUsed,
-            })),
-          });
-        }
       }
-
-      return updatedProduct;
-    });
+    }
 
     return NextResponse.json(product);
   } catch (error: any) {
