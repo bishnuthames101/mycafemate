@@ -1,3 +1,52 @@
+const withPWA = require("@ducanh2912/next-pwa").default({
+  dest: "public",
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: true,
+  swcMinify: true,
+  disable: process.env.NODE_ENV === "development",
+  workboxOptions: {
+    disableDevLogs: true,
+    // Cache strategies for different resource types
+    runtimeCaching: [
+      {
+        urlPattern: /^https:\/\/.*\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
+        handler: "CacheFirst",
+        options: {
+          cacheName: "images-cache",
+          expiration: {
+            maxEntries: 64,
+            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+          },
+        },
+      },
+      {
+        urlPattern: /^https:\/\/.*\.(?:js|css)$/i,
+        handler: "StaleWhileRevalidate",
+        options: {
+          cacheName: "static-resources",
+          expiration: {
+            maxEntries: 32,
+            maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+          },
+        },
+      },
+      {
+        urlPattern: /^https:\/\/.*\/api\/.*$/i,
+        handler: "NetworkFirst",
+        options: {
+          cacheName: "api-cache",
+          networkTimeoutSeconds: 10,
+          expiration: {
+            maxEntries: 16,
+            maxAgeSeconds: 5 * 60, // 5 minutes
+          },
+        },
+      },
+    ],
+  },
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Enable instrumentation for environment validation on startup
@@ -50,11 +99,12 @@ const nextConfig = {
 
     const ContentSecurityPolicy = `
       default-src 'self';
-      script-src 'self' 'unsafe-inline';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval';
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: https: blob:;
       font-src 'self' data:;
       ${connectSrc};
+      worker-src 'self';
       frame-ancestors 'self';
       base-uri 'self';
       ${formAction};
@@ -136,4 +186,4 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig;
+module.exports = withPWA(nextConfig);

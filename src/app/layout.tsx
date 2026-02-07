@@ -9,6 +9,19 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 export const metadata: Metadata = {
   title: "My-CafeMate - Complete Cafe Management Solution for Nepal | POS & Inventory System",
   description: "Smart cafe management system built for Nepali cafes. Order management, inventory tracking, staff management, and analytics. NPR 1,200/month. 14-day free trial. No credit card required.",
+  applicationName: "My-CafeMate",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "CafeMate",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    viewportFit: "cover",
+  },
   keywords: [
     "cafe management system Nepal",
     "restaurant POS Nepal",
