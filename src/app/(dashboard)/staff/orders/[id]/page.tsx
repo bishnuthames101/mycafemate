@@ -84,8 +84,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     );
   }
 
-  // Simplified status flow: PENDING -> SERVED -> Payment -> COMPLETED
-  const canMarkAsServed = order.status === "PENDING";
+  // Status flow: PENDING -> READY -> SERVED -> Payment -> COMPLETED
+  // Staff can mark PENDING or READY orders as SERVED
+  const canMarkAsServed = order.status === "PENDING" || order.status === "READY";
   const canProceedToPayment = order.status === "SERVED" && order.paymentStatus !== "PAID";
   const showActions = order.status !== "COMPLETED" && order.status !== "CANCELLED";
 
@@ -249,7 +250,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       onClick={() => updateStatus("SERVED")}
                       disabled={isUpdating}
                     >
-                      {isUpdating ? "Updating..." : "Mark as Served"}
+                      {isUpdating ? "Updating..." : order.status === "READY" ? "Deliver & Mark Served" : "Mark as Served"}
                     </Button>
                     <Button
                       variant="outline"
