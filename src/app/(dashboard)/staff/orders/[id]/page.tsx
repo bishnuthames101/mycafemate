@@ -26,10 +26,24 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "invoice">("details");
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [businessName, setBusinessName] = useState<string>("");
 
   useEffect(() => {
     fetchOrder();
+    fetchTenantConfig();
   }, [params.id]);
+
+  const fetchTenantConfig = async () => {
+    try {
+      const res = await fetch("/api/tenant/config");
+      if (res.ok) {
+        const data = await res.json();
+        setBusinessName(data.businessName || "");
+      }
+    } catch (error) {
+      console.error("Error fetching tenant config:", error);
+    }
+  };
 
   const fetchOrder = async () => {
     try {
@@ -137,7 +151,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         </div>
 
         {activeTab === "invoice" ? (
-          <OrderInvoice order={order} />
+          <OrderInvoice order={order} locationName={businessName || undefined} />
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -224,12 +238,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 {canProceedToPayment ? (
                   <>
                     <Button
-                      className="flex-1"
+                      className="flex-1 py-6 text-base font-semibold"
                       size="lg"
                       onClick={() => setShowPaymentDialog(true)}
                       disabled={isUpdating}
                     >
-                      <CreditCard className="h-4 w-4 mr-2" />
+                      <CreditCard className="h-5 w-5 mr-2" />
                       Proceed to Payment
                     </Button>
                     <Button
@@ -237,7 +251,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       size="lg"
                       onClick={() => updateStatus("CANCELLED")}
                       disabled={isUpdating}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      className="py-6 text-base font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       Cancel Order
                     </Button>
@@ -245,7 +259,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 ) : canMarkAsServed ? (
                   <>
                     <Button
-                      className="flex-1"
+                      className="flex-1 py-6 text-base font-semibold"
                       size="lg"
                       onClick={() => updateStatus("SERVED")}
                       disabled={isUpdating}
@@ -257,7 +271,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       size="lg"
                       onClick={() => updateStatus("CANCELLED")}
                       disabled={isUpdating}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      className="py-6 text-base font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
                       Cancel Order
                     </Button>
