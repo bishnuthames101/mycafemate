@@ -166,7 +166,7 @@ export async function runPrismaMigrations(databaseUrl: string): Promise<void> {
       { name: "TableStatus", values: ["AVAILABLE", "OCCUPIED", "RESERVED", "CLEANING"] },
       { name: "OrderStatus", values: ["PENDING", "PREPARING", "READY", "SERVED", "COMPLETED", "CANCELLED"] },
       { name: "PaymentMethod", values: ["CASH", "ESEWA", "FONEPAY", "BANK_TRANSFER", "CREDIT"] },
-      { name: "PaymentStatus", values: ["PENDING", "PAID", "REFUNDED"] },
+      { name: "PaymentStatus", values: ["PENDING", "PAID", "PARTIAL", "REFUNDED"] },
       { name: "NotificationType", values: [
         "LOW_STOCK", "OUT_OF_STOCK",
         "TRIAL_EXPIRING_SOON", "TRIAL_EXPIRED", "PAYMENT_DUE", "PAYMENT_OVERDUE",
@@ -346,6 +346,7 @@ export async function runPrismaMigrations(databaseUrl: string): Promise<void> {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "completedAt" TIMESTAMP(3),
+        "isSplitPayment" BOOLEAN NOT NULL DEFAULT false,
         CONSTRAINT "Order_pkey" PRIMARY KEY ("id"),
         CONSTRAINT "Order_tableId_fkey" FOREIGN KEY ("tableId") REFERENCES "${schemaName}"."Table"("id") ON DELETE SET NULL ON UPDATE CASCADE,
         CONSTRAINT "Order_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "${schemaName}"."Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -375,6 +376,23 @@ export async function runPrismaMigrations(databaseUrl: string): Promise<void> {
       );
       CREATE INDEX IF NOT EXISTS "OrderItem_orderId_idx" ON "${schemaName}"."OrderItem"("orderId");
       CREATE INDEX IF NOT EXISTS "OrderItem_productId_idx" ON "${schemaName}"."OrderItem"("productId");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."OrderPayment" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "orderId" TEXT NOT NULL,
+        "paymentMethod" "${schemaName}"."PaymentMethod" NOT NULL,
+        "amount" DOUBLE PRECISION NOT NULL,
+        "creditorId" TEXT,
+        "paidAt" TIMESTAMP(3),
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "OrderPayment_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "OrderPayment_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "${schemaName}"."Order"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "OrderPayment_creditorId_fkey" FOREIGN KEY ("creditorId") REFERENCES "${schemaName}"."Creditor"("id") ON DELETE SET NULL ON UPDATE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS "OrderPayment_orderId_idx" ON "${schemaName}"."OrderPayment"("orderId");
+      CREATE INDEX IF NOT EXISTS "OrderPayment_creditorId_idx" ON "${schemaName}"."OrderPayment"("creditorId");
     `);
 
     await client.query(`
