@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { OrderStatus, PaymentMethod } from "@prisma/client";
 
+// Modifiable statuses constant - orders in these statuses can be modified
+export const MODIFIABLE_ORDER_STATUSES: OrderStatus[] = [
+  "PENDING",
+  "PREPARING",
+  "READY",
+];
+
 // ID validation helper (accepts cuid, cuid2, uuid, and other common ID formats)
 const cuidSchema = z
   .string()
@@ -61,8 +68,23 @@ export const orderQuerySchema = z.object({
     .optional(),
 });
 
+// Change table schema
+export const changeOrderTableSchema = z.object({
+  newTableId: z.string().min(1, "New table ID is required"),
+});
+
+// Add items schema (reuses existing orderItemSchema)
+export const addOrderItemsSchema = z.object({
+  items: z
+    .array(orderItemSchema)
+    .min(1, "At least one item is required")
+    .max(50, "Cannot add more than 50 items at once"),
+});
+
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>;
 export type OrderItemInput = z.infer<typeof orderItemSchema>;
 export type OrderQueryInput = z.infer<typeof orderQuerySchema>;
 export type CompleteOrderPaymentInput = z.infer<typeof completeOrderPaymentSchema>;
+export type ChangeOrderTableInput = z.infer<typeof changeOrderTableSchema>;
+export type AddOrderItemsInput = z.infer<typeof addOrderItemsSchema>;
