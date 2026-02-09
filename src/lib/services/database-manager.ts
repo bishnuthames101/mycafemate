@@ -358,6 +358,8 @@ export async function runPrismaMigrations(databaseUrl: string): Promise<void> {
       CREATE INDEX IF NOT EXISTS "Order_status_idx" ON "${schemaName}"."Order"("status");
       CREATE INDEX IF NOT EXISTS "Order_orderNumber_idx" ON "${schemaName}"."Order"("orderNumber");
       CREATE INDEX IF NOT EXISTS "Order_creditorId_createdAt_idx" ON "${schemaName}"."Order"("creditorId", "createdAt");
+      CREATE INDEX IF NOT EXISTS "Order_locationId_status_createdAt_idx" ON "${schemaName}"."Order"("locationId", "status", "createdAt");
+      CREATE INDEX IF NOT EXISTS "Order_tableId_status_idx" ON "${schemaName}"."Order"("tableId", "status");
     `);
 
     await client.query(`
