@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
-import { updatePaymentSchema } from "@/lib/validations/payment";
+import { updatePaymentSchema, splitPaymentSchema } from "@/lib/validations/payment";
 import { revalidatePath } from "next/cache";
 
 export async function PATCH(
@@ -34,9 +34,6 @@ export async function PATCH(
     const orderId = params.id;
     const body = await request.json();
 
-    // Validate input
-    const validatedData = updatePaymentSchema.parse(body);
-
     // Check if order exists
     const existingOrder = await prisma.order.findUnique({
       where: { id: orderId },
@@ -45,6 +42,14 @@ export async function PATCH(
     if (!existingOrder) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
+
+    // Handle split payment
+    if (body.isSplitPayment === true) {
+      return handleSplitPayment(prisma, orderId, existingOrder, body);
+    }
+
+    // Validate input for single payment
+    const validatedData = updatePaymentSchema.parse(body);
 
     // Handle CREDIT payment method specially
     if (validatedData.paymentMethod === "CREDIT") {
@@ -155,4 +160,158 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+// Handle split payment logic
+async function handleSplitPayment(
+  prisma: any,
+  orderId: string,
+  existingOrder: any,
+  body: any
+) {
+  // Add orderTotal from existing order for validation
+  const validationData = {
+    ...body,
+    orderTotal: existingOrder.total,
+  };
+
+  // Validate split payment
+  const validatedData = splitPaymentSchema.parse(validationData);
+
+  // Check for credit payment and verify creditor exists
+  const creditPayment = validatedData.payments.find(p => p.paymentMethod === "CREDIT");
+  let creditorId: string | null = null;
+
+  if (creditPayment) {
+    const creditor = await prisma.creditor.findUnique({
+      where: { id: creditPayment.creditorId },
+    });
+    if (!creditor) {
+      return NextResponse.json(
+        { error: "Creditor not found" },
+        { status: 404 }
+      );
+    }
+    creditorId = creditPayment.creditorId!;
+  }
+
+  // Determine payment status:
+  // - PAID if no credit portion
+  // - PARTIAL if has credit portion
+  const hasCredit = !!creditPayment;
+  const paymentStatus = hasCredit ? "PARTIAL" : "PAID";
+
+  // Build transaction operations
+  const operations: any[] = [];
+
+  // 1. Update order
+  operations.push(
+    prisma.order.update({
+      where: { id: orderId },
+      data: {
+        isSplitPayment: true,
+        paymentMethod: null, // Split payments don't use the single method field
+        paymentStatus,
+        creditorId: creditorId, // Set if there's a credit component
+        paidAt: hasCredit ? null : new Date(),
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        table: true,
+        staff: {
+          select: {
+            name: true,
+            email: true,
+          },
+        },
+        creditor: {
+          select: {
+            id: true,
+            name: true,
+            currentBalance: true,
+          },
+        },
+        payments: true,
+      },
+    })
+  );
+
+  // 2. Create OrderPayment records
+  for (const payment of validatedData.payments) {
+    const isCredit = payment.paymentMethod === "CREDIT";
+    operations.push(
+      prisma.orderPayment.create({
+        data: {
+          orderId,
+          paymentMethod: payment.paymentMethod,
+          amount: payment.amount,
+          creditorId: isCredit ? payment.creditorId : null,
+          paidAt: isCredit ? null : new Date(),
+        },
+      })
+    );
+  }
+
+  // 3. Update creditor balance if credit payment exists
+  if (creditPayment && creditorId) {
+    operations.push(
+      prisma.creditor.update({
+        where: { id: creditorId },
+        data: {
+          currentBalance: { increment: creditPayment.amount },
+          lastOrderDate: new Date(),
+        },
+      })
+    );
+  }
+
+  // Execute transaction
+  const results = await prisma.$transaction(operations);
+  const updatedOrder = results[0];
+
+  // Fetch full order with payments for response
+  const orderWithPayments = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: {
+        include: {
+          product: true,
+        },
+      },
+      table: true,
+      staff: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
+      creditor: {
+        select: {
+          id: true,
+          name: true,
+          currentBalance: true,
+        },
+      },
+      payments: {
+        include: {
+          creditor: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Revalidate relevant paths
+  revalidatePath("/staff/orders");
+  revalidatePath(`/staff/orders/${orderId}`);
+
+  return NextResponse.json(orderWithPayments);
 }

@@ -5,7 +5,7 @@ export const PaymentMethod = z.enum(["CASH", "ESEWA", "FONEPAY", "BANK_TRANSFER"
 export type PaymentMethod = z.infer<typeof PaymentMethod>;
 
 // Payment Status enum
-export const PaymentStatus = z.enum(["PENDING", "PAID", "REFUNDED"]);
+export const PaymentStatus = z.enum(["PENDING", "PAID", "PARTIAL", "REFUNDED"]);
 export type PaymentStatus = z.infer<typeof PaymentStatus>;
 
 // Update payment schema (for order payments)
@@ -76,3 +76,40 @@ export const createPaymentRecordSchema = z.object({
 
 export type UpdatePaymentInput = z.infer<typeof updatePaymentSchema>;
 export type CreatePaymentRecordInput = z.infer<typeof createPaymentRecordSchema>;
+
+// ============= SPLIT PAYMENT SCHEMAS =============
+
+// Single payment entry in a split
+export const splitPaymentEntrySchema = z.object({
+  paymentMethod: PaymentMethod,
+  amount: z.number().positive("Amount must be positive"),
+  creditorId: z.string().optional(),
+}).refine(
+  (data) => {
+    if (data.paymentMethod === "CREDIT") return !!data.creditorId;
+    return true;
+  },
+  { message: "Creditor required for credit payment", path: ["creditorId"] }
+);
+
+// Split payment request (exactly 2 payments)
+export const splitPaymentSchema = z.object({
+  isSplitPayment: z.literal(true),
+  orderTotal: z.number().positive(),
+  payments: z.array(splitPaymentEntrySchema).length(2, "Split payment requires exactly 2 payments"),
+}).refine(
+  (data) => {
+    const sum = data.payments.reduce((s, p) => s + p.amount, 0);
+    return Math.abs(sum - data.orderTotal) < 0.01;
+  },
+  { message: "Payment amounts must equal order total", path: ["payments"] }
+).refine(
+  (data) => {
+    const creditPayments = data.payments.filter(p => p.paymentMethod === "CREDIT");
+    return creditPayments.length <= 1;
+  },
+  { message: "Only one payment can be CREDIT in a split", path: ["payments"] }
+);
+
+export type SplitPaymentEntry = z.infer<typeof splitPaymentEntrySchema>;
+export type SplitPaymentInput = z.infer<typeof splitPaymentSchema>;

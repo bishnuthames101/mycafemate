@@ -88,6 +88,7 @@ model Creditor {
   currentBalance  Float           @default(0)
   orders          Order[]
   payments        CreditPayment[]
+  orderPayments   OrderPayment[]  // For split payment credit portions
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   lastOrderDate   DateTime?
@@ -190,6 +191,9 @@ model Order {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   completedAt   DateTime?
+  // Split payment support
+  isSplitPayment Boolean        @default(false)
+  payments       OrderPayment[]
 
   @@index([locationId, createdAt])
   @@index([status])
@@ -221,6 +225,7 @@ enum PaymentMethod {
 enum PaymentStatus {
   PENDING
   PAID
+  PARTIAL    // Has credit component in split payment
   REFUNDED
 }
 
@@ -238,6 +243,22 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+}
+
+// Split payment individual payment record
+model OrderPayment {
+  id            String        @id @default(cuid())
+  orderId       String
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod
+  amount        Float
+  creditorId    String?
+  creditor      Creditor?     @relation(fields: [creditorId], references: [id], onDelete: SetNull)
+  paidAt        DateTime?     // null for CREDIT, set for immediate payments
+  createdAt     DateTime      @default(now())
+
+  @@index([orderId])
+  @@index([creditorId])
 }
 
 // ============= INVENTORY MANAGEMENT =============

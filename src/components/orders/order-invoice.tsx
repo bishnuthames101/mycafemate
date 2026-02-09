@@ -1,6 +1,6 @@
 "use client";
 
-import { Order, OrderItem, Product, Table, User, PaymentMethod, PaymentStatus } from "@prisma/client";
+import { Order, OrderItem, Product, Table, User, PaymentMethod, PaymentStatus, OrderPayment, Creditor } from "@prisma/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
@@ -8,12 +8,17 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { PaymentStatusBadge } from "./payment-status-badge";
 import { OrderStatusBadge } from "./order-status-badge";
 
+type OrderPaymentWithCreditor = OrderPayment & {
+  creditor?: Pick<Creditor, "id" | "name"> | null;
+};
+
 type OrderWithDetails = Order & {
   items: (OrderItem & {
     product: Product;
   })[];
   table: Table | null;
   staff: Pick<User, "name" | "email">;
+  payments?: OrderPaymentWithCreditor[];
 };
 
 interface OrderInvoiceProps {
@@ -136,7 +141,30 @@ export function OrderInvoice({
         </div>
 
         {/* Payment Information */}
-        {order.paymentMethod && (
+        {order.isSplitPayment && order.payments && order.payments.length > 0 ? (
+          <div className="border-t pt-4">
+            <h3 className="font-semibold text-coffee-700 mb-2">Payment Breakdown</h3>
+            <div className="space-y-2">
+              {order.payments.map((payment, index) => (
+                <div key={payment.id} className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {payment.paymentMethod}
+                    {payment.paymentMethod === "CREDIT" && payment.creditor && (
+                      <span className="text-xs ml-1">({payment.creditor.name})</span>
+                    )}
+                  </span>
+                  <span className="font-medium">{formatCurrency(payment.amount)}</span>
+                </div>
+              ))}
+            </div>
+            {order.paidAt && (
+              <div className="flex items-center justify-between text-sm mt-2 pt-2 border-t border-dashed">
+                <span className="text-muted-foreground">Paid At:</span>
+                <span className="font-medium">{formatDateTime(order.paidAt)}</span>
+              </div>
+            )}
+          </div>
+        ) : order.paymentMethod && (
           <div className="border-t pt-4">
             <h3 className="font-semibold text-coffee-700 mb-2">Payment Information</h3>
             <div className="flex items-center justify-between text-sm">

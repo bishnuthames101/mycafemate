@@ -46,6 +46,16 @@ export async function GET(
             currentBalance: true,
           },
         },
+        payments: {
+          include: {
+            creditor: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -179,6 +189,16 @@ export async function PATCH(
             id: true,
             name: true,
             currentBalance: true,
+          },
+        },
+        payments: {
+          include: {
+            creditor: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },

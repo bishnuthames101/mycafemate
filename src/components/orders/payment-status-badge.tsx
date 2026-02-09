@@ -10,6 +10,10 @@ const statusConfig = {
     label: "Paid",
     color: "bg-green-100 text-green-800 border-green-200",
   },
+  PARTIAL: {
+    label: "Partial",
+    color: "bg-orange-100 text-orange-800 border-orange-200",
+  },
   REFUNDED: {
     label: "Refunded",
     color: "bg-gray-100 text-gray-800 border-gray-200",
