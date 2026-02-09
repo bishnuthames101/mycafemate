@@ -9,6 +9,37 @@ import { createNewOrderNotification } from "@/lib/services/notification-service"
 import { ZodError } from "zod";
 import { logger } from '@/lib/utils/logger';
 
+// Optimized include for order list queries (reduced payload)
+const orderListInclude = {
+  items: {
+    select: {
+      id: true,
+      quantity: true,
+      price: true,
+      subtotal: true,
+      notes: true,
+      product: {
+        select: {
+          id: true,
+          name: true,
+          category: true,
+        },
+      },
+    },
+  },
+  table: {
+    select: {
+      id: true,
+      number: true,
+    },
+  },
+  staff: {
+    select: {
+      name: true,
+    },
+  },
+} as const;
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -57,20 +88,13 @@ export async function GET(request: NextRequest) {
           locationId,
           status: { in: statusFilter as any },
         },
-        include: {
-          location: true,
-          items: {
-            include: {
-              product: true,
-            },
-          },
-          table: true,
-          staff: {
-            select: {
-              name: true,
-              email: true,
-            },
-          },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          notes: true,
+          createdAt: true,
+          ...orderListInclude,
         },
         orderBy: {
           createdAt: "asc", // Oldest first for kitchen queue
@@ -87,6 +111,11 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const tableId = searchParams.get("tableId");
 
+    // Pagination parameters
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "0", 10)));
+    const paginated = limit > 0; // Only paginate if limit is explicitly set
+
     // Handle comma-separated statuses
     const statusFilter = status
       ? status.includes(',')
@@ -94,27 +123,60 @@ export async function GET(request: NextRequest) {
         : status as any
       : undefined;
 
+    const whereClause = {
+      ...(locationId && { locationId }),
+      ...(statusFilter && { status: statusFilter }),
+      ...(tableId && { tableId }),
+    };
+
+    // Optimized select for order lists (excludes unnecessary fields)
+    const orderListSelect = {
+      id: true,
+      orderNumber: true,
+      status: true,
+      subtotal: true,
+      tax: true,
+      total: true,
+      notes: true,
+      paymentStatus: true,
+      paymentMethod: true,
+      createdAt: true,
+      ...orderListInclude,
+    };
+
+    if (paginated) {
+      // Paginated response with metadata
+      const [orders, total] = await Promise.all([
+        prisma.order.findMany({
+          where: whereClause,
+          select: orderListSelect,
+          orderBy: {
+            createdAt: "desc",
+          },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+        prisma.order.count({ where: whereClause }),
+      ]);
+
+      const totalPages = Math.ceil(total / limit);
+
+      return NextResponse.json({
+        orders,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasMore: page < totalPages,
+        },
+      });
+    }
+
+    // Non-paginated response (backward compatible)
     const orders = await prisma.order.findMany({
-      where: {
-        ...(locationId && { locationId }),
-        ...(statusFilter && { status: statusFilter }),
-        ...(tableId && { tableId }),
-      },
-      include: {
-        location: true,
-        items: {
-          include: {
-            product: true,
-          },
-        },
-        table: true,
-        staff: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-      },
+      where: whereClause,
+      select: orderListSelect,
       orderBy: {
         createdAt: "desc",
       },

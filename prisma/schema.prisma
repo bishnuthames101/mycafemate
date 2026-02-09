@@ -195,6 +195,10 @@ model Order {
   @@index([status])
   @@index([orderNumber])
   @@index([creditorId, createdAt])
+  // Composite index for kitchen queries (location + status + timestamp)
+  @@index([locationId, status, createdAt])
+  // Index for table's active orders
+  @@index([tableId, status])
 }
 
 enum OrderStatus {

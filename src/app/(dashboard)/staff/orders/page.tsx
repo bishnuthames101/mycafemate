@@ -1,48 +1,89 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { OrderList } from "@/components/orders/order-list";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft } from "lucide-react";
+import { Plus, ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
+
+const POLLING_INTERVAL = 3000; // 3 seconds
 
 export default function StaffOrdersPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
-  // Auto-refresh orders every 3 seconds for real-time updates
-  useEffect(() => {
-    if (session?.user?.locationId) {
-      fetchOrders(); // Initial fetch with loading
-
-      // Set up polling interval for background updates
-      const interval = setInterval(() => {
-        fetchOrders(false); // Background refresh without loading indicator
-      }, 3000); // Refresh every 3 seconds
-
-      // Cleanup interval on unmount
-      return () => clearInterval(interval);
+  const fetchOrders = useCallback(async (showLoading = true) => {
+    if (!session?.user?.locationId) {
+      if (showLoading) setLoading(false);
+      return;
     }
-  }, [session]);
 
-  const fetchOrders = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await fetch(`/api/orders?locationId=${session?.user?.locationId}&status=PENDING,PREPARING,READY,SERVED`);
+      const res = await fetch(`/api/orders?locationId=${session.user.locationId}&status=PENDING,PREPARING,READY,SERVED`);
       if (res.ok) {
         const data = await res.json();
         setOrders(data);
+        setLastUpdate(new Date());
       }
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {
       if (showLoading) setLoading(false);
     }
-  };
+  }, [session?.user?.locationId]);
+
+  // Auto-refresh orders with visibility awareness
+  useEffect(() => {
+    if (!session?.user?.locationId) return;
+
+    let interval: NodeJS.Timeout | null = null;
+
+    const startPolling = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        fetchOrders(false); // Background refresh without loading indicator
+      }, POLLING_INTERVAL);
+    };
+
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        // Fetch immediately when tab becomes visible, then resume polling
+        fetchOrders(false);
+        startPolling();
+      }
+    };
+
+    // Initial fetch with loading
+    fetchOrders(true);
+
+    // Start polling only if page is visible
+    if (!document.hidden) {
+      startPolling();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Cleanup on unmount
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [session?.user?.locationId, fetchOrders]);
 
   const handleOrderClick = (order: any) => {
     router.push(`/staff/orders/${order.id}`);
@@ -69,9 +110,14 @@ export default function StaffOrdersPage() {
               </Link>
               <div className="min-w-0">
                 <h1 className="text-2xl md:text-3xl font-bold text-coffee-700">Orders</h1>
-                <p className="text-sm md:text-base text-coffee-600 mt-1">
-                  Manage and track all active orders
-                </p>
+                <div className="flex items-center gap-2 text-sm text-coffee-500 mt-1">
+                  <span>Manage and track all active orders</span>
+                  <span className="hidden sm:inline">•</span>
+                  <span className="hidden sm:flex items-center gap-1">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    Updated {lastUpdate.toLocaleTimeString()}
+                  </span>
+                </div>
               </div>
             </div>
             <Link href="/staff/orders/new" className="w-full sm:w-auto">

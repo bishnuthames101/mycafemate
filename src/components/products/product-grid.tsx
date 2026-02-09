@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { ProductCard } from "./product-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getCached, setCache, CACHE_KEYS, CACHE_TTL } from "@/lib/utils/cache";
 
 interface Product {
   id: string;
@@ -40,13 +41,23 @@ export function ProductGrid({
   ]);
 
   useEffect(() => {
+    // Load from cache first for instant display
+    const cachedCategories = getCached<CategoryOption[]>(CACHE_KEYS.CATEGORIES);
+    if (cachedCategories) {
+      setCategories(cachedCategories);
+    }
+
+    // Fetch fresh data in background
     fetch("/api/categories")
       .then((res) => (res.ok ? res.json() : []))
       .then((data: any[]) => {
-        setCategories([
+        const categoryOptions = [
           { value: "ALL", label: "All" },
           ...data.map((c) => ({ value: c.slug, label: c.name })),
-        ]);
+        ];
+        setCategories(categoryOptions);
+        // Cache for future visits (30 minutes - categories rarely change)
+        setCache(CACHE_KEYS.CATEGORIES, categoryOptions, CACHE_TTL.CATEGORIES);
       })
       .catch(() => {});
   }, []);

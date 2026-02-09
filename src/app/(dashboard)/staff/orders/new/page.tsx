@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import {
+  getCached,
+  setCache,
+  CACHE_KEYS,
+  CACHE_TTL,
+  locationCacheKey,
+} from "@/lib/utils/cache";
 
 export default function NewOrderPage() {
   const { data: session } = useSession();
@@ -29,28 +36,57 @@ export default function NewOrderPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // Load from cache first for instant display
+    const cachedProducts = getCached<Product[]>(CACHE_KEYS.PRODUCTS);
+    if (cachedProducts) {
+      setProducts(cachedProducts);
+    }
+    // Fetch fresh data in background
     fetchProducts();
   }, []);
 
   useEffect(() => {
     if (session?.user?.locationId) {
+      const locationId = session.user.locationId;
+      // Load from cache first for instant display
+      const cachedTables = getCached<Table[]>(locationCacheKey(CACHE_KEYS.TABLES, locationId));
+      if (cachedTables) {
+        setTables(cachedTables.filter((t: Table) => t.status === "AVAILABLE"));
+      }
+      // Fetch fresh data in background
       fetchTables();
     }
   }, [session?.user?.locationId]);
 
   const fetchProducts = async () => {
-    const res = await fetch("/api/products?isAvailable=true");
-    if (res.ok) {
-      const data = await res.json();
-      setProducts(data);
+    try {
+      const res = await fetch("/api/products?isAvailable=true");
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+        // Cache for future visits
+        setCache(CACHE_KEYS.PRODUCTS, data, CACHE_TTL.PRODUCTS);
+      }
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
     }
   };
 
   const fetchTables = async () => {
-    const res = await fetch(`/api/tables?locationId=${session?.user.locationId}`);
-    if (res.ok) {
-      const data = await res.json();
-      setTables(data.filter((t: Table) => t.status === "AVAILABLE"));
+    const locationId = session?.user.locationId;
+    if (!locationId) return;
+
+    try {
+      const res = await fetch(`/api/tables?locationId=${locationId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const availableTables = data.filter((t: Table) => t.status === "AVAILABLE");
+        setTables(availableTables);
+        // Cache for future visits
+        setCache(locationCacheKey(CACHE_KEYS.TABLES, locationId), data, CACHE_TTL.TABLES);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tables:", error);
     }
   };
 

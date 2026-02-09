@@ -98,14 +98,46 @@ export default function KitchenOrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Polling for new orders
+  // Polling for new orders with visibility awareness
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchOrders();
-    }, POLLING_INTERVAL);
+    let interval: NodeJS.Timeout | null = null;
+
+    const startPolling = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        fetchOrders();
+      }, POLLING_INTERVAL);
+    };
+
+    const stopPolling = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        // Fetch immediately when tab becomes visible, then resume polling
+        fetchOrders();
+        startPolling();
+      }
+    };
+
+    // Start polling only if page is visible
+    if (!document.hidden) {
+      startPolling();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Cleanup on unmount - CRITICAL to prevent memory leaks
-    return () => clearInterval(interval);
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [fetchOrders]);
 
   const handleMarkReady = async (orderId: string) => {

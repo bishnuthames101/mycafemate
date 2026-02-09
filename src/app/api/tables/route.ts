@@ -33,21 +33,28 @@ export async function GET(request: NextRequest) {
         number: "asc",
       },
       include: {
-        orders: {
-          where: {
-            status: {
-              in: ["PENDING", "PREPARING", "READY", "SERVED"],
+        _count: {
+          select: {
+            orders: {
+              where: {
+                status: {
+                  in: ["PENDING", "PREPARING", "READY", "SERVED"],
+                },
+              },
             },
-          },
-          take: 1,
-          orderBy: {
-            createdAt: "desc",
           },
         },
       },
     });
 
-    return NextResponse.json(tables);
+    // Transform to include hasActiveOrder boolean for lighter payload
+    const tablesWithActiveStatus = tables.map((table) => ({
+      ...table,
+      hasActiveOrder: table._count.orders > 0,
+      _count: undefined, // Remove _count from response
+    }));
+
+    return NextResponse.json(tablesWithActiveStatus);
   } catch (error) {
     logger.error("Error fetching tables:", error instanceof Error ? error : undefined);
     return NextResponse.json(
