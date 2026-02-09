@@ -34,4 +34,20 @@
   body {
     @apply bg-cream-50 text-foreground;
   }
+
+  /* Prevent iOS auto-zoom on input focus - inputs must be 16px+ */
+  @media screen and (max-width: 768px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    input:not([type]),
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
 }
