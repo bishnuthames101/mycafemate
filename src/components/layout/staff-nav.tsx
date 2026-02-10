@@ -36,9 +36,8 @@ export function StaffNav({ user }: StaffNavProps) {
         <div className="flex items-center justify-between h-16">
           {/* Logo/Brand */}
           <div className="flex items-center">
-            <Link href="/staff" className="flex items-center gap-1">
-              <span className="text-lg font-bold text-coffee-700">My-</span>
-              <span className="bg-cafe-gradient text-white font-bold text-sm px-2 py-1 rounded-lg">CafeMate</span>
+            <Link href="/staff" className="flex items-center">
+              <span className="bg-cafe-gradient text-white font-bold text-base px-3 py-1.5 rounded-lg">My-CafeMate</span>
             </Link>
           </div>
 
