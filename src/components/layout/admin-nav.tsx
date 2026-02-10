@@ -77,7 +77,7 @@ export function AdminNav({ user }: AdminNavProps) {
               <div className="w-7 h-7 sm:w-8 sm:h-8 bg-cafe-gradient rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-base sm:text-lg">M</span>
               </div>
-              <span className="text-base sm:text-lg lg:text-xl font-bold text-coffee-700 hidden sm:inline">
+              <span className="text-base sm:text-lg lg:text-xl font-bold text-coffee-700">
                 My-CafeMate
               </span>
             </Link>

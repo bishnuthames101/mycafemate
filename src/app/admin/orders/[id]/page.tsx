@@ -374,12 +374,12 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                       {canProceedToPayment ? (
                         <>
                           <Button
-                            className="flex-1"
+                            className="flex-1 py-6 text-base font-semibold"
                             size="lg"
                             onClick={() => setShowPaymentDialog(true)}
                             disabled={isUpdating}
                           >
-                            <CreditCard className="h-4 w-4 mr-2" />
+                            <CreditCard className="h-5 w-5 mr-2" />
                             Proceed to Payment
                           </Button>
                           <Button
@@ -387,7 +387,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                             size="lg"
                             onClick={() => updateStatus("CANCELLED")}
                             disabled={isUpdating}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="py-6 text-base font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             Cancel Order
                           </Button>
@@ -395,7 +395,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                       ) : canMarkAsServed ? (
                         <>
                           <Button
-                            className="flex-1"
+                            className="flex-1 py-6 text-base font-semibold"
                             size="lg"
                             onClick={() => updateStatus("SERVED")}
                             disabled={isUpdating}
@@ -407,7 +407,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                             size="lg"
                             onClick={() => updateStatus("CANCELLED")}
                             disabled={isUpdating}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="py-6 text-base font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             Cancel Order
                           </Button>
