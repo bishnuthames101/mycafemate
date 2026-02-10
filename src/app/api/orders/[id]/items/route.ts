@@ -5,7 +5,6 @@ import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import { addOrderItemsSchema, MODIFIABLE_ORDER_STATUSES } from "@/lib/validations/order";
 import {
   validateInventoryForOrder,
-  deductInventoryForOrder,
   createLowStockNotifications,
 } from "@/lib/utils/inventory-management";
 import { logger } from "@/lib/utils/logger";
@@ -98,13 +97,24 @@ export async function POST(
       );
     }
 
-    // Determine if order has tax
+    // Calculate new totals in-memory (no need to re-fetch items from DB)
     const hasTax = order.tax > 0;
+    const existingSubtotal = order.items.reduce(
+      (sum: number, item: any) => sum + item.subtotal,
+      0
+    );
+    const newItemsSubtotal = items.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    const newSubtotal = existingSubtotal + newItemsSubtotal;
+    const newTax = hasTax ? calculateTax(newSubtotal, true) : 0;
+    const newTotal = newSubtotal + newTax;
 
-    // Create new order items and recalculate totals
+    // Create new order items and update totals in one transaction
     const updatedOrder = await prisma.$transaction(async (tx: any) => {
       // Create new OrderItem records
-      const createdItems = await Promise.all(
+      await Promise.all(
         items.map((item) =>
           tx.orderItem.create({
             data: {
@@ -119,22 +129,8 @@ export async function POST(
         )
       );
 
-      // Fetch all items (existing + new)
-      const allItems = await tx.orderItem.findMany({
-        where: { orderId: params.id },
-        include: { product: true },
-      });
-
-      // Recalculate totals
-      const newSubtotal = allItems.reduce(
-        (sum: number, item: any) => sum + item.subtotal,
-        0
-      );
-      const newTax = hasTax ? calculateTax(newSubtotal, true) : 0;
-      const newTotal = newSubtotal + newTax;
-
-      // Update order totals
-      const updated = await tx.order.update({
+      // Update order totals and return with includes
+      return tx.order.update({
         where: { id: params.id },
         data: {
           subtotal: newSubtotal,
@@ -142,127 +138,67 @@ export async function POST(
           total: newTotal,
         },
         include: {
-          items: {
-            include: {
-              product: true,
-            },
-          },
+          items: { include: { product: true } },
           table: true,
-          staff: {
-            select: {
-              name: true,
-              email: true,
-            },
-          },
-          creditor: {
-            select: {
-              id: true,
-              name: true,
-              currentBalance: true,
-            },
-          },
-          payments: {
-            include: {
-              creditor: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
+          staff: { select: { name: true, email: true } },
+          creditor: { select: { id: true, name: true, currentBalance: true } },
         },
       });
-
-      return updated;
     });
 
-    // Deduct inventory for the new items (outside transaction, non-blocking)
-    try {
-      // Create a temporary "order" with just the new items for inventory deduction
-      const tempOrderForDeduction = await prisma.order.findUnique({
-        where: { id: params.id },
-        include: {
-          location: true,
-          items: {
-            where: {
-              productId: { in: items.map((i) => i.productId) },
-            },
-            include: {
-              product: {
-                include: {
-                  recipeItems: {
-                    include: {
-                      inventory: true,
-                    },
-                  },
-                },
-              },
-            },
-            orderBy: { createdAt: "desc" },
-            take: items.length,
-          },
-        },
-      });
+    // Deduct inventory and check low stock in parallel
+    const deductInventory = async () => {
+      try {
+        // Fetch products with recipes (simple query, not the entire order tree)
+        const products = await prisma.product.findMany({
+          where: { id: { in: items.map((i) => i.productId) } },
+          include: { recipeItems: true },
+        });
 
-      if (tempOrderForDeduction) {
-        // Manually deduct inventory for new items
+        // Calculate deductions
         const inventoryDeductions = new Map<string, number>();
-
         for (const item of items) {
-          // Find the product with recipes
-          const orderItem = tempOrderForDeduction.items.find(
-            (oi: any) => oi.productId === item.productId
-          );
-          if (orderItem) {
-            for (const recipeItem of orderItem.product.recipeItems) {
-              const currentDeduction =
-                inventoryDeductions.get(recipeItem.inventoryId) || 0;
-              const newDeduction = item.quantity * recipeItem.quantityUsed;
-              inventoryDeductions.set(
-                recipeItem.inventoryId,
-                currentDeduction + newDeduction
-              );
-            }
+          const product = products.find((p: any) => p.id === item.productId);
+          if (!product) continue;
+          for (const recipeItem of product.recipeItems) {
+            const current = inventoryDeductions.get(recipeItem.inventoryId) || 0;
+            inventoryDeductions.set(
+              recipeItem.inventoryId,
+              current + item.quantity * recipeItem.quantityUsed
+            );
           }
         }
 
-        // Apply deductions
-        for (const [inventoryId, deductionAmount] of Array.from(
-          inventoryDeductions.entries()
-        )) {
-          await prisma.inventoryItem.updateMany({
-            where: {
-              inventoryId,
-              inventory: {
-                locationId: order.locationId,
+        // Apply all deductions in parallel
+        await Promise.all(
+          Array.from(inventoryDeductions.entries()).map(([inventoryId, amount]) =>
+            prisma.inventoryItem.updateMany({
+              where: {
+                inventoryId,
+                inventory: { locationId: order.locationId },
               },
-            },
-            data: {
-              currentStock: {
-                decrement: deductionAmount,
-              },
-            },
-          });
-        }
+              data: { currentStock: { decrement: amount } },
+            })
+          )
+        );
+      } catch (err) {
+        logger.error(
+          "Error deducting inventory for added items",
+          err instanceof Error ? err : undefined
+        );
       }
-    } catch (inventoryError) {
-      logger.error(
-        "Error deducting inventory for added items",
-        inventoryError instanceof Error ? inventoryError : undefined
-      );
-      // Don't fail the request if inventory deduction fails
-    }
+    };
 
-    // Check low stock and create notifications (non-blocking)
-    try {
-      await createLowStockNotifications(prisma, order.locationId);
-    } catch (notificationError) {
-      logger.error(
-        "Error creating low stock notifications",
-        notificationError instanceof Error ? notificationError : undefined
-      );
-    }
+    // Run deduction and notifications in parallel
+    await Promise.all([
+      deductInventory(),
+      createLowStockNotifications(prisma, order.locationId).catch((err) =>
+        logger.error(
+          "Error creating low stock notifications",
+          err instanceof Error ? err : undefined
+        )
+      ),
+    ]);
 
     return NextResponse.json(updatedOrder);
   } catch (error: any) {

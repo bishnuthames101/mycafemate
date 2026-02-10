@@ -33,11 +33,15 @@ export async function PATCH(
     const body = await request.json();
     const { newTableId } = changeOrderTableSchema.parse(body);
 
-    // Fetch order with current table
-    const order = await prisma.order.findUnique({
-      where: { id: params.id },
-      include: { table: true },
-    });
+    // Fetch order and new table in parallel
+    const [order, newTable] = await Promise.all([
+      prisma.order.findUnique({
+        where: { id: params.id },
+      }),
+      prisma.table.findUnique({
+        where: { id: newTableId },
+      }),
+    ]);
 
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
@@ -75,11 +79,6 @@ export async function PATCH(
         { status: 400 }
       );
     }
-
-    // Verify new table exists and is available
-    const newTable = await prisma.table.findUnique({
-      where: { id: newTableId },
-    });
 
     if (!newTable) {
       return NextResponse.json(
@@ -120,31 +119,22 @@ export async function PATCH(
         }
       }
 
-      // Update order table
-      const updated = await tx.order.update({
-        where: { id: params.id },
-        data: { tableId: newTableId },
-        include: {
-          items: {
-            include: {
-              product: true,
-            },
+      // Update order table and set new table to OCCUPIED in parallel
+      const [updated] = await Promise.all([
+        tx.order.update({
+          where: { id: params.id },
+          data: { tableId: newTableId },
+          include: {
+            items: { include: { product: true } },
+            table: true,
+            staff: { select: { name: true, email: true } },
           },
-          table: true,
-          staff: {
-            select: {
-              name: true,
-              email: true,
-            },
-          },
-        },
-      });
-
-      // Set new table status to OCCUPIED
-      await tx.table.update({
-        where: { id: newTableId },
-        data: { status: "OCCUPIED" },
-      });
+        }),
+        tx.table.update({
+          where: { id: newTableId },
+          data: { status: "OCCUPIED" },
+        }),
+      ]);
 
       // Check if old table has other active orders
       if (oldTableId) {
