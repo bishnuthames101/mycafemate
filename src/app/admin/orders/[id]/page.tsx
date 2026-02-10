@@ -374,7 +374,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                       {canProceedToPayment ? (
                         <>
                           <Button
-                            className="flex-1 py-6 text-base font-semibold"
+                            className="flex-1 py-3 text-base font-semibold"
                             size="lg"
                             onClick={() => setShowPaymentDialog(true)}
                             disabled={isUpdating}
@@ -387,7 +387,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                             size="lg"
                             onClick={() => updateStatus("CANCELLED")}
                             disabled={isUpdating}
-                            className="py-6 text-base font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="py-3 text-base font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             Cancel Order
                           </Button>
@@ -395,7 +395,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                       ) : canMarkAsServed ? (
                         <>
                           <Button
-                            className="flex-1 py-6 text-base font-semibold"
+                            className="flex-1 py-3 text-base font-semibold"
                             size="lg"
                             onClick={() => updateStatus("SERVED")}
                             disabled={isUpdating}
@@ -407,7 +407,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                             size="lg"
                             onClick={() => updateStatus("CANCELLED")}
                             disabled={isUpdating}
-                            className="py-6 text-base font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="py-3 text-base font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             Cancel Order
                           </Button>
