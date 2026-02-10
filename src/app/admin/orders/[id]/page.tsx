@@ -9,8 +9,11 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { PaymentStatusBadge } from "@/components/orders/payment-status-badge";
 import { OrderInvoice } from "@/components/orders/order-invoice";
 import { PaymentFlowDialog } from "@/components/orders/payment-flow-dialog";
+import { ChangeTableDialog } from "@/components/orders/change-table-dialog";
+import { AddItemsDialog } from "@/components/orders/add-items-dialog";
+import { MODIFIABLE_ORDER_STATUSES } from "@/lib/validations/order";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { ArrowLeft, FileText, Package, CreditCard, Trash2, MapPin } from "lucide-react";
+import { ArrowLeft, FileText, Package, CreditCard, Trash2, MapPin, Plus, X } from "lucide-react";
 import Link from "next/link";
 
 interface OrderWithRelations extends Order {
@@ -32,6 +35,9 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<"details" | "invoice">("details");
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showChangeTableDialog, setShowChangeTableDialog] = useState(false);
+  const [showAddItemsDialog, setShowAddItemsDialog] = useState(false);
+  const [isRemovingItem, setIsRemovingItem] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrder();
@@ -111,8 +117,30 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
     );
   }
 
+  const handleRemoveItem = async (itemId: string) => {
+    if (!confirm("Remove this item from the order?")) return;
+
+    setIsRemovingItem(itemId);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/items/${itemId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchOrder();
+      } else {
+        const error = await res.json();
+        alert(error.message || error.error || "Failed to remove item");
+      }
+    } catch (error) {
+      alert("Failed to remove item");
+    } finally {
+      setIsRemovingItem(null);
+    }
+  };
+
   // Simplified status flow: PENDING -> SERVED -> Payment -> COMPLETED
-  const canMarkAsServed = order.status === "PENDING";
+  const isOrderModifiable = MODIFIABLE_ORDER_STATUSES.includes(order.status);
+  const canMarkAsServed = order.status === "PENDING" || order.status === "READY";
   const canProceedToPayment = order.status === "SERVED" && order.paymentStatus !== "PAID";
   const showActions = order.status !== "COMPLETED" && order.status !== "CANCELLED";
 
@@ -125,6 +153,27 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
         locationId={order.locationId}
         open={showPaymentDialog}
         onOpenChange={setShowPaymentDialog}
+        onSuccess={fetchOrder}
+      />
+
+      <ChangeTableDialog
+        orderId={order.id}
+        orderNumber={order.orderNumber}
+        currentTableId={order.tableId}
+        currentTableNumber={order.table?.number || null}
+        locationId={order.locationId}
+        open={showChangeTableDialog}
+        onOpenChange={setShowChangeTableDialog}
+        onSuccess={fetchOrder}
+      />
+
+      <AddItemsDialog
+        orderId={order.id}
+        orderNumber={order.orderNumber}
+        tableNumber={order.table?.number || null}
+        locationId={order.locationId}
+        open={showAddItemsDialog}
+        onOpenChange={setShowAddItemsDialog}
         onSuccess={fetchOrder}
       />
 
@@ -205,9 +254,21 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                       <span className="text-muted-foreground">Status:</span>
                       <OrderStatusBadge status={order.status} />
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-center">
                       <span className="text-muted-foreground">Table:</span>
-                      <span className="font-medium">{order.table?.number || "No table"}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{order.table?.number || "No table"}</span>
+                        {isOrderModifiable && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setShowChangeTableDialog(true)}
+                          >
+                            Change
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Staff:</span>
@@ -252,16 +313,40 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {order.items.map((item) => (
-                      <div key={item.id} className="flex justify-between">
+                      <div key={item.id} className="flex justify-between items-center">
                         <div>
                           <p className="font-medium">{item.product.name}</p>
                           <p className="text-sm text-muted-foreground">
                             {item.quantity} × {formatCurrency(item.price)}
                           </p>
                         </div>
-                        <span className="font-semibold">{formatCurrency(item.subtotal)}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{formatCurrency(item.subtotal)}</span>
+                          {isOrderModifiable && order.items.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                              onClick={() => handleRemoveItem(item.id)}
+                              disabled={isRemovingItem === item.id}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
+
+                    {isOrderModifiable && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setShowAddItemsDialog(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add More Items
+                      </Button>
+                    )}
 
                     <div className="pt-3 border-t space-y-2">
                       <div className="flex justify-between text-sm">
@@ -315,7 +400,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
                             onClick={() => updateStatus("SERVED")}
                             disabled={isUpdating}
                           >
-                            {isUpdating ? "Updating..." : "Mark as Served"}
+                            {isUpdating ? "Updating..." : order.status === "READY" ? "Deliver & Mark Served" : "Mark as Served"}
                           </Button>
                           <Button
                             variant="outline"
