@@ -1,6 +1,8 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { OrderStatus } from "@prisma/client";
 import { calculateTax } from "@/lib/config/business";
@@ -13,6 +15,12 @@ export async function createOrder(data: {
   notes?: string;
   includeTax?: boolean;
 }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.tenantSlug) {
+    throw new Error("Unauthorized: No tenant context");
+  }
+  const prisma = await getTenantPrisma(session.user.tenantSlug);
+
   // Generate order number
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const count = await prisma.order.count({
@@ -72,6 +80,12 @@ export async function createOrder(data: {
 }
 
 export async function updateOrderStatus(orderId: string, status: OrderStatus) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.tenantSlug) {
+    throw new Error("Unauthorized: No tenant context");
+  }
+  const prisma = await getTenantPrisma(session.user.tenantSlug);
+
   const order = await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -97,6 +111,12 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus) {
 }
 
 export async function getOrdersByLocation(locationId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.tenantSlug) {
+    throw new Error("Unauthorized: No tenant context");
+  }
+  const prisma = await getTenantPrisma(session.user.tenantSlug);
+
   const orders = await prisma.order.findMany({
     where: {
       locationId,
@@ -126,6 +146,12 @@ export async function getOrdersByLocation(locationId: string) {
 }
 
 export async function getOrderById(orderId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.tenantSlug) {
+    throw new Error("Unauthorized: No tenant context");
+  }
+  const prisma = await getTenantPrisma(session.user.tenantSlug);
+
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {

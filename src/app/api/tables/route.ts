@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import { createTableSchema } from "@/lib/validations/table";
 import { logger } from '@/lib/utils/logger';
+import { TableStatus } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     const tables = await prisma.table.findMany({
       where: {
         ...(locationId && { locationId }),
-        ...(status && { status: status as any }),
+        ...(status && { status: status as TableStatus }),
       },
       orderBy: {
         number: "asc",

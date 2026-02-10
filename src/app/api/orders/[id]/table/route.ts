@@ -102,31 +102,24 @@ export async function PATCH(
       );
     }
 
-    // Check if new table has active orders (unless it's marked AVAILABLE)
-    if (newTable.status !== "AVAILABLE") {
-      // Check if there are actually active orders on this table
-      const activeOrdersOnNewTable = await prisma.order.count({
-        where: {
-          tableId: newTableId,
-          status: { in: ["PENDING", "PREPARING", "READY", "SERVED"] },
-        },
-      });
-
-      if (activeOrdersOnNewTable > 0) {
-        return NextResponse.json(
-          {
-            error: "TABLE_OCCUPIED",
-            message: `Table ${newTable.number} already has active orders`,
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Perform transaction
+    // Perform transaction with table availability re-check inside
     const oldTableId = order.tableId;
 
     const updatedOrder = await prisma.$transaction(async (tx: any) => {
+      // Re-check table availability inside transaction to prevent race condition
+      const freshTable = await tx.table.findUnique({ where: { id: newTableId } });
+      if (freshTable && freshTable.status !== "AVAILABLE") {
+        const activeOrdersOnNewTable = await tx.order.count({
+          where: {
+            tableId: newTableId,
+            status: { in: ["PENDING", "PREPARING", "READY", "SERVED"] },
+          },
+        });
+        if (activeOrdersOnNewTable > 0) {
+          throw new Error("TABLE_OCCUPIED");
+        }
+      }
+
       // Update order table
       const updated = await tx.order.update({
         where: { id: params.id },
@@ -177,6 +170,15 @@ export async function PATCH(
 
     return NextResponse.json(updatedOrder);
   } catch (error: any) {
+    if (error.message === "TABLE_OCCUPIED") {
+      return NextResponse.json(
+        {
+          error: "TABLE_OCCUPIED",
+          message: "Table already has active orders",
+        },
+        { status: 400 }
+      );
+    }
     logger.error("Error changing order table", error instanceof Error ? error : undefined);
     if (error.name === "ZodError") {
       return NextResponse.json(

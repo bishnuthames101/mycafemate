@@ -71,6 +71,7 @@ export async function deductInventoryForOrder(
 
 /**
  * Check for low stock items at a location
+ * Uses raw SQL for efficient field-to-field comparison
  */
 export async function checkLowStockItems(
   prisma: any,
@@ -85,58 +86,49 @@ export async function checkLowStockItems(
     isOutOfStock: boolean;
   }>
 > {
-  // Fetch all inventory items for the location
-  const allItems = await prisma.inventoryItem.findMany({
-    where: {
-      inventory: {
-        locationId,
-      },
-    },
-    include: {
-      inventory: true,
-    },
-  });
+  const lowStockItems: Array<{
+    id: string;
+    inventoryName: string;
+    currentStock: number;
+    minimumStock: number;
+    unit: string;
+    isOutOfStock: boolean;
+  }> = await prisma.$queryRaw`
+    SELECT ii.id, i.name as "inventoryName", ii."currentStock", ii."minimumStock", i.unit,
+           (ii."currentStock" <= 0) as "isOutOfStock"
+    FROM "InventoryItem" ii
+    JOIN "Inventory" i ON ii."inventoryId" = i.id
+    WHERE i."locationId" = ${locationId}
+    AND ii."currentStock" <= ii."minimumStock"
+  `;
 
-  // Filter in application code for field-to-field comparison
-  const lowStockItems = allItems.filter(
-    (item: typeof allItems[0]) => item.currentStock <= item.minimumStock
-  );
-
-  return lowStockItems.map((item: typeof lowStockItems[0]) => ({
-    id: item.id,
-    inventoryName: item.inventory.name,
-    currentStock: item.currentStock,
-    minimumStock: item.minimumStock,
-    unit: item.inventory.unit,
-    isOutOfStock: item.currentStock <= 0,
-  }));
+  return lowStockItems;
 }
 
 /**
  * Create low stock notifications for items that haven't been alerted yet
+ * Uses raw SQL for efficient field-to-field comparison
  */
 export async function createLowStockNotifications(
   prisma: any,
   locationId: string
 ): Promise<number> {
   try {
-    // Find items that haven't been alerted yet
-    const allItems = await prisma.inventoryItem.findMany({
-      where: {
-        inventory: {
-          locationId,
-        },
-        lowStockAlerted: false,
-      },
-      include: {
-        inventory: true,
-      },
-    });
-
-    // Filter in application code for field-to-field comparison
-    const lowStockItems = allItems.filter(
-      (item: typeof allItems[0]) => item.currentStock <= item.minimumStock
-    );
+    // Find low stock items that haven't been alerted yet using raw SQL
+    const lowStockItems: Array<{
+      id: string;
+      inventoryName: string;
+      currentStock: number;
+      minimumStock: number;
+      unit: string;
+    }> = await prisma.$queryRaw`
+      SELECT ii.id, i.name as "inventoryName", ii."currentStock", ii."minimumStock", i.unit
+      FROM "InventoryItem" ii
+      JOIN "Inventory" i ON ii."inventoryId" = i.id
+      WHERE i."locationId" = ${locationId}
+      AND ii."lowStockAlerted" = false
+      AND ii."currentStock" <= ii."minimumStock"
+    `;
 
     let notificationsCreated = 0;
 
@@ -147,10 +139,10 @@ export async function createLowStockNotifications(
       await createLowStockNotification(prisma, {
         locationId,
         inventoryItemId: item.id,
-        inventoryName: item.inventory.name,
+        inventoryName: item.inventoryName,
         currentStock: item.currentStock,
         minimumStock: item.minimumStock,
-        unit: item.inventory.unit,
+        unit: item.unit,
         isOutOfStock,
       });
 
@@ -226,6 +218,7 @@ export async function restockInventory(
 
 /**
  * Get inventory status summary for a location
+ * Uses raw SQL for efficient field-to-field comparison
  */
 export async function getInventoryStatus(
   prisma: any,
@@ -236,33 +229,29 @@ export async function getInventoryStatus(
   outOfStockCount: number;
   healthyStockCount: number;
 }> {
-  const inventoryItems = await prisma.inventoryItem.findMany({
-    where: {
-      inventory: {
-        locationId,
-      },
-    },
-  });
+  const counts: Array<{
+    totalItems: bigint;
+    outOfStockCount: bigint;
+    lowStockCount: bigint;
+    healthyStockCount: bigint;
+  }> = await prisma.$queryRaw`
+    SELECT
+      COUNT(*) as "totalItems",
+      COUNT(*) FILTER (WHERE ii."currentStock" <= 0) as "outOfStockCount",
+      COUNT(*) FILTER (WHERE ii."currentStock" > 0 AND ii."currentStock" <= ii."minimumStock") as "lowStockCount",
+      COUNT(*) FILTER (WHERE ii."currentStock" > ii."minimumStock") as "healthyStockCount"
+    FROM "InventoryItem" ii
+    JOIN "Inventory" i ON ii."inventoryId" = i.id
+    WHERE i."locationId" = ${locationId}
+  `;
 
-  let lowStockCount = 0;
-  let outOfStockCount = 0;
-  let healthyStockCount = 0;
-
-  for (const item of inventoryItems) {
-    if (item.currentStock <= 0) {
-      outOfStockCount++;
-    } else if (item.currentStock <= item.minimumStock) {
-      lowStockCount++;
-    } else {
-      healthyStockCount++;
-    }
-  }
+  const result = counts[0];
 
   return {
-    totalItems: inventoryItems.length,
-    lowStockCount,
-    outOfStockCount,
-    healthyStockCount,
+    totalItems: Number(result.totalItems),
+    lowStockCount: Number(result.lowStockCount),
+    outOfStockCount: Number(result.outOfStockCount),
+    healthyStockCount: Number(result.healthyStockCount),
   };
 }
 

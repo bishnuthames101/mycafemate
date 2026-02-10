@@ -100,7 +100,7 @@ export const splitPaymentSchema = z.object({
 }).refine(
   (data) => {
     const sum = data.payments.reduce((s, p) => s + p.amount, 0);
-    return Math.abs(sum - data.orderTotal) < 0.01;
+    return Math.round(sum * 100) === Math.round(data.orderTotal * 100);
   },
   { message: "Payment amounts must equal order total", path: ["payments"] }
 ).refine(

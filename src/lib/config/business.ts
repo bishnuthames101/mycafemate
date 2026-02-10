@@ -24,5 +24,6 @@ export function calculateTax(subtotal: number, includeTax: boolean = true): numb
 // Helper function to calculate total
 export function calculateTotal(subtotal: number, discount: number = 0, includeTax: boolean = true): number {
   const tax = calculateTax(subtotal, includeTax);
-  return subtotal + tax - discount;
+  const clampedDiscount = Math.max(0, Math.min(discount, subtotal + tax));
+  return subtotal + tax - clampedDiscount;
 }

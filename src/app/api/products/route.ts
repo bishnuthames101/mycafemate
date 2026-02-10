@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     // Create recipe items if provided
     if (recipes && Array.isArray(recipes) && recipes.length > 0) {
       await prisma.recipeItem.createMany({
-        data: recipes.map((recipe: any) => ({
+        data: recipes.map((recipe: { inventoryId: string; quantityUsed: number }) => ({
           productId: product.id,
           inventoryId: recipe.inventoryId,
           quantityUsed: recipe.quantityUsed,

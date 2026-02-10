@@ -8,6 +8,7 @@ import { deductInventoryForOrder, createLowStockNotifications, validateInventory
 import { createNewOrderNotification } from "@/lib/services/notification-service";
 import { ZodError } from "zod";
 import { logger } from '@/lib/utils/logger';
+import { OrderStatus } from "@prisma/client";
 
 // Optimized include for order list queries (reduced payload)
 const orderListInclude = {
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
       const orders = await prisma.order.findMany({
         where: {
           locationId,
-          status: { in: statusFilter as any },
+          status: { in: statusFilter as OrderStatus[] },
         },
         select: {
           id: true,
@@ -119,8 +120,8 @@ export async function GET(request: NextRequest) {
     // Handle comma-separated statuses
     const statusFilter = status
       ? status.includes(',')
-        ? { in: status.split(',') as any }
-        : status as any
+        ? { in: status.split(',') as OrderStatus[] }
+        : status as OrderStatus
       : undefined;
 
     const whereClause = {
@@ -253,16 +254,17 @@ export async function POST(request: NextRequest) {
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        // Generate order number based on count
+        // Generate order number based on last order number
         const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-        const count = await prisma.order.count({
-          where: {
-            orderNumber: {
-              startsWith: `ORD-${today}`,
-            },
-          },
+        const lastOrder = await prisma.order.findFirst({
+          where: { orderNumber: { startsWith: `ORD-${today}` } },
+          orderBy: { orderNumber: "desc" },
+          select: { orderNumber: true },
         });
-        const orderNumber = `ORD-${today}-${String(count + 1).padStart(4, "0")}`;
+        const nextNum = lastOrder
+          ? parseInt(lastOrder.orderNumber.split("-").pop()!) + 1
+          : 1;
+        const orderNumber = `ORD-${today}-${String(nextNum).padStart(4, "0")}`;
 
         // Create order with items (inventory already validated above)
         order = await prisma.order.create({

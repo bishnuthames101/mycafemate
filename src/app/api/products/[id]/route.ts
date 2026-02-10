@@ -67,8 +67,36 @@ export async function PATCH(
       data: validatedData,
     });
 
-    // If recipes are provided, replace all existing recipes
+    // If recipes are provided, validate then replace all existing recipes
     if (recipes !== undefined) {
+      // Validate recipes before modifying
+      if (Array.isArray(recipes) && recipes.length > 0) {
+        for (const recipe of recipes) {
+          if (!recipe.inventoryId || typeof recipe.inventoryId !== "string") {
+            return NextResponse.json(
+              { error: "Each recipe item must have a valid inventoryId" },
+              { status: 400 }
+            );
+          }
+          if (!recipe.quantityUsed || typeof recipe.quantityUsed !== "number" || recipe.quantityUsed <= 0) {
+            return NextResponse.json(
+              { error: "Each recipe item must have a quantityUsed > 0" },
+              { status: 400 }
+            );
+          }
+          const inventory = await prisma.inventory.findUnique({
+            where: { id: recipe.inventoryId },
+            select: { id: true },
+          });
+          if (!inventory) {
+            return NextResponse.json(
+              { error: `Inventory '${recipe.inventoryId}' not found` },
+              { status: 400 }
+            );
+          }
+        }
+      }
+
       // Delete existing recipes
       await prisma.recipeItem.deleteMany({
         where: { productId: params.id },
@@ -77,7 +105,7 @@ export async function PATCH(
       // Create new recipes
       if (Array.isArray(recipes) && recipes.length > 0) {
         await prisma.recipeItem.createMany({
-          data: recipes.map((recipe: any) => ({
+          data: recipes.map((recipe: { inventoryId: string; quantityUsed: number }) => ({
             productId: params.id,
             inventoryId: recipe.inventoryId,
             quantityUsed: recipe.quantityUsed,

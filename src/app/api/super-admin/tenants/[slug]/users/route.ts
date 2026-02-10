@@ -75,7 +75,7 @@ export async function GET(
   } catch (error: any) {
     logger.error("List users error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -132,7 +132,7 @@ export async function POST(
     }
 
     // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
         { error: "Invalid email format" },
@@ -261,7 +261,7 @@ export async function POST(
   } catch (error: any) {
     logger.error("Create user error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
