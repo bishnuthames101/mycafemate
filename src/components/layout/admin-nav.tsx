@@ -73,13 +73,9 @@ export function AdminNav({ user }: AdminNavProps) {
         <div className="flex items-center justify-between h-14 sm:h-16">
           {/* Logo/Brand */}
           <div className="flex items-center shrink-0">
-            <Link href="/admin" className="flex items-center space-x-2">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-cafe-gradient rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-base sm:text-lg">M</span>
-              </div>
-              <span className="text-base sm:text-lg lg:text-xl font-bold text-coffee-700">
-                My-CafeMate
-              </span>
+            <Link href="/admin" className="flex items-center gap-1">
+              <span className="text-lg font-bold text-coffee-700">My-</span>
+              <span className="bg-cafe-gradient text-white font-bold text-sm px-2 py-1 rounded-lg">CafeMate</span>
             </Link>
           </div>
 
