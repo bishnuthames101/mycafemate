@@ -114,7 +114,8 @@ export async function GET(request: NextRequest) {
 
     // Pagination parameters
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "0", 10)));
+    const rawLimit = parseInt(searchParams.get("limit") || "0", 10);
+    const limit = rawLimit > 0 ? Math.min(50, rawLimit) : 0;
     const paginated = limit > 0; // Only paginate if limit is explicitly set
 
     // Handle comma-separated statuses
