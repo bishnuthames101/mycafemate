@@ -85,7 +85,10 @@ export async function POST(
         },
       }),
       prisma.creditor.update({
-        where: { id: params.id },
+        where: {
+          id: params.id,
+          currentBalance: creditor.currentBalance, // Optimistic lock
+        },
         data: { currentBalance: newBalance },
         include: {
           location: {
@@ -110,6 +113,14 @@ export async function POST(
     return NextResponse.json(result);
   } catch (error: any) {
     logger.error("Error recording payment:", error instanceof Error ? error : undefined);
+
+    // Optimistic lock failure - balance changed between read and write
+    if (error.code === "P2025") {
+      return NextResponse.json(
+        { error: "Balance was modified. Please try again." },
+        { status: 409 }
+      );
+    }
 
     if (error instanceof ZodError) {
       return NextResponse.json(

@@ -55,7 +55,9 @@ export async function GET(request: NextRequest) {
       _count: undefined, // Remove _count from response
     }));
 
-    return NextResponse.json(tablesWithActiveStatus);
+    const response = NextResponse.json(tablesWithActiveStatus);
+    response.headers.set("Cache-Control", "private, max-age=30");
+    return response;
   } catch (error) {
     logger.error("Error fetching tables:", error instanceof Error ? error : undefined);
     return NextResponse.json(

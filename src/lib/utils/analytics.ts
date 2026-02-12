@@ -235,18 +235,34 @@ export async function getRevenueMetrics(
   endDate: Date,
   prisma: PrismaClientLike = defaultPrisma
 ): Promise<RevenueMetrics> {
-  const dailySales = await prisma.dailySales.findMany({
-    where: {
-      locationId,
-      date: {
-        gte: startOfDay(startDate),
-        lte: endOfDay(endDate),
+  // Compute previous period dates upfront for parallel queries
+  const periodLength = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const previousStartDate = subDays(startDate, periodLength);
+  const previousEndDate = subDays(endDate, periodLength);
+
+  const [dailySales, previousSales, orders] = await Promise.all([
+    prisma.dailySales.findMany({
+      where: {
+        locationId,
+        date: { gte: startOfDay(startDate), lte: endOfDay(endDate) },
       },
-    },
-    orderBy: {
-      date: "asc",
-    },
-  });
+      orderBy: { date: "asc" },
+    }),
+    prisma.dailySales.findMany({
+      where: {
+        locationId,
+        date: { gte: startOfDay(previousStartDate), lte: endOfDay(previousEndDate) },
+      },
+    }),
+    prisma.order.findMany({
+      where: {
+        locationId,
+        status: "COMPLETED",
+        createdAt: { gte: startOfDay(startDate), lte: endOfDay(endDate) },
+      },
+      select: { paymentMethod: true, total: true },
+    }),
+  ]);
 
   const totalRevenue = dailySales.reduce((sum, sale) => sum + sale.totalRevenue, 0);
   const totalOrders = dailySales.reduce((sum, sale) => sum + sale.totalOrders, 0);
@@ -267,39 +283,8 @@ export async function getRevenueMetrics(
   const daysInRange = dailySales.length;
   const revenuePerDay = daysInRange > 0 ? totalRevenue / daysInRange : 0;
 
-  // Calculate growth compared to previous period
-  const periodLength = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const previousStartDate = subDays(startDate, periodLength);
-  const previousEndDate = subDays(endDate, periodLength);
-
-  const previousSales = await prisma.dailySales.findMany({
-    where: {
-      locationId,
-      date: {
-        gte: startOfDay(previousStartDate),
-        lte: endOfDay(previousEndDate),
-      },
-    },
-  });
-
   const previousRevenue = previousSales.reduce((sum, sale) => sum + sale.totalRevenue, 0);
   const growth = previousRevenue > 0 ? ((totalRevenue - previousRevenue) / previousRevenue) * 100 : 0;
-
-  // Get payment method breakdown from actual orders
-  const orders = await prisma.order.findMany({
-    where: {
-      locationId,
-      status: "COMPLETED",
-      createdAt: {
-        gte: startOfDay(startDate),
-        lte: endOfDay(endDate),
-      },
-    },
-    select: {
-      paymentMethod: true,
-      total: true,
-    },
-  });
 
   const paymentBreakdown = new Map<string, { count: number; revenue: number }>();
   orders.forEach((order) => {

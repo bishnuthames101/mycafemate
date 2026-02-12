@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
+import useSWR from "swr";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RevenueChart } from "@/components/analytics/revenue-chart";
 import { CategoryChart } from "@/components/analytics/category-chart";
@@ -17,14 +17,7 @@ import Link from "next/link";
 
 export default function ReportsPage() {
   const { data: session } = useSession();
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
   const [dateRange, setDateRange] = useState<string>("1month");
-  const [weeklyData, setWeeklyData] = useState<any[]>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-  const [categoryData, setCategoryData] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState<any>(null);
-  const [creditSummary, setCreditSummary] = useState<any>(null);
 
   const locationId = session?.user?.locationId || "";
 
@@ -36,10 +29,8 @@ export default function ReportsPage() {
 
     switch (dateRange) {
       case "today":
-        // Start of today (00:00:00)
         startDate = new Date(now);
         startDate.setHours(0, 0, 0, 0);
-        // End of today (23:59:59)
         endDate = new Date(now);
         endDate.setHours(23, 59, 59, 999);
         break;
@@ -64,56 +55,40 @@ export default function ReportsPage() {
   };
 
   const { startDate, endDate } = getDateRange();
+  const startStr = format(startDate, "yyyy-MM-dd");
+  const endStr = format(endDate, "yyyy-MM-dd");
 
-  useEffect(() => {
-    if (locationId) {
-      fetchData();
-    }
-  }, [locationId, dateRange]);
+  const swrOptions = { dedupingInterval: 300000 };
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const { startDate, endDate } = getDateRange();
+  const { data: weeklyData, mutate: mutateWeekly, isLoading: loadingWeekly } = useSWR(
+    locationId ? `/api/analytics/weekly?locationId=${locationId}&weekOffset=0` : null,
+    swrOptions
+  );
+  const { data: topProducts, mutate: mutateProducts, isLoading: loadingProducts } = useSWR(
+    locationId ? `/api/analytics/top-products?locationId=${locationId}&startDate=${startStr}&endDate=${endStr}&limit=10` : null,
+    swrOptions
+  );
+  const { data: categoryData, mutate: mutateCategories, isLoading: loadingCategories } = useSWR(
+    locationId ? `/api/analytics/category-breakdown?locationId=${locationId}&startDate=${startStr}&endDate=${endStr}` : null,
+    swrOptions
+  );
+  const { data: metrics, mutate: mutateMetrics, isLoading: loadingMetrics } = useSWR(
+    locationId ? `/api/analytics/revenue-metrics?locationId=${locationId}&startDate=${startStr}&endDate=${endStr}` : null,
+    swrOptions
+  );
+  const { data: creditSummary, mutate: mutateCredit, isLoading: loadingCredit } = useSWR(
+    locationId ? `/api/analytics/credit-summary?locationId=${locationId}&startDate=${startStr}&endDate=${endStr}` : null,
+    swrOptions
+  );
 
-      const [weekly, products, categories, metricsData, creditData] = await Promise.all([
-        fetch(`/api/analytics/weekly?locationId=${locationId}&weekOffset=0`).then((r) => r.json()),
-        fetch(
-          `/api/analytics/top-products?locationId=${locationId}&startDate=${format(
-            startDate,
-            "yyyy-MM-dd"
-          )}&endDate=${format(endDate, "yyyy-MM-dd")}&limit=10`
-        ).then((r) => r.json()),
-        fetch(
-          `/api/analytics/category-breakdown?locationId=${locationId}&startDate=${format(
-            startDate,
-            "yyyy-MM-dd"
-          )}&endDate=${format(endDate, "yyyy-MM-dd")}`
-        ).then((r) => r.json()),
-        fetch(
-          `/api/analytics/revenue-metrics?locationId=${locationId}&startDate=${format(
-            startDate,
-            "yyyy-MM-dd"
-          )}&endDate=${format(endDate, "yyyy-MM-dd")}`
-        ).then((r) => r.json()),
-        fetch(
-          `/api/analytics/credit-summary?locationId=${locationId}&startDate=${format(
-            startDate,
-            "yyyy-MM-dd"
-          )}&endDate=${format(endDate, "yyyy-MM-dd")}`
-        ).then((r) => r.json()),
-      ]);
+  const loading = loadingWeekly || loadingProducts || loadingCategories || loadingMetrics || loadingCredit;
 
-      setWeeklyData(weekly);
-      setTopProducts(products);
-      setCategoryData(categories);
-      setMetrics(metricsData);
-      setCreditSummary(creditData);
-    } catch (error) {
-      console.error("Error fetching analytics:", error);
-    } finally {
-      setLoading(false);
-    }
+  const handleRefresh = () => {
+    mutateWeekly();
+    mutateProducts();
+    mutateCategories();
+    mutateMetrics();
+    mutateCredit();
   };
 
   if (loading) {
@@ -142,7 +117,7 @@ export default function ReportsPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button variant="outline" onClick={fetchData} className="w-full sm:w-auto">
+            <Button variant="outline" onClick={handleRefresh} className="w-full sm:w-auto">
               <Calendar className="h-4 w-4 mr-2" />
               Refresh Data
             </Button>
@@ -198,7 +173,7 @@ export default function ReportsPage() {
               <CardDescription>Daily revenue performance</CardDescription>
             </CardHeader>
             <CardContent>
-              {weeklyData.length > 0 ? (
+              {weeklyData && weeklyData.length > 0 ? (
                 <RevenueChart data={weeklyData} timeframe="daily" />
               ) : (
                 <p className="text-center text-muted-foreground py-8">No data available</p>
@@ -213,7 +188,7 @@ export default function ReportsPage() {
               <CardDescription>Revenue distribution across categories</CardDescription>
             </CardHeader>
             <CardContent>
-              {categoryData.length > 0 ? (
+              {categoryData && categoryData.length > 0 ? (
                 <CategoryChart data={categoryData} />
               ) : (
                 <p className="text-center text-muted-foreground py-8">No data available</p>
@@ -236,7 +211,7 @@ export default function ReportsPage() {
             <CardDescription>Best performing menu items by quantity sold</CardDescription>
           </CardHeader>
           <CardContent>
-            {topProducts.length > 0 ? (
+            {topProducts && topProducts.length > 0 ? (
               <TopProductsChart data={topProducts} />
             ) : (
               <p className="text-center text-muted-foreground py-8">No data available</p>
@@ -416,7 +391,7 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {categoryData.map((cat) => (
+                  {(categoryData || []).map((cat: any) => (
                     <tr key={cat.category}>
                       <td className="p-3 font-medium">{cat.category}</td>
                       <td className="p-3 text-right">{formatCurrency(cat.revenue)}</td>

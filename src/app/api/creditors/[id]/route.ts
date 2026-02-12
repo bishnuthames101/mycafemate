@@ -30,6 +30,9 @@ export async function GET(
     const creditor = await prisma.creditor.findUnique({
       where: { id: params.id },
       include: {
+        _count: {
+          select: { orders: true, payments: true },
+        },
         location: {
           select: {
             id: true,
@@ -38,6 +41,7 @@ export async function GET(
         },
         orders: {
           orderBy: { createdAt: "desc" },
+          take: 20,
           include: {
             items: {
               include: {
@@ -60,6 +64,7 @@ export async function GET(
         },
         payments: {
           orderBy: { createdAt: "desc" },
+          take: 20,
           include: {
             recordedBy: {
               select: {

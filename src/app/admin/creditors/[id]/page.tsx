@@ -23,6 +23,10 @@ interface Creditor {
     id: string;
     name: string;
   };
+  _count?: {
+    orders: number;
+    payments: number;
+  };
   lastOrderDate?: string;
   orders: Array<{
     id: string;
@@ -150,8 +154,8 @@ export default function AdminCreditorDetailPage({ params }: { params: { id: stri
     );
   }
 
-  // Calculate stats
-  const totalOrders = creditor.orders.length;
+  // Calculate stats (use _count for totals, visible data for sums)
+  const totalOrders = creditor._count?.orders ?? creditor.orders.length;
   const totalPaid = creditor.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const totalCredit = creditor.orders.reduce((sum, order) => sum + order.total, 0);
 
@@ -325,7 +329,7 @@ export default function AdminCreditorDetailPage({ params }: { params: { id: stri
                       : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  Credit Orders ({creditor.orders.length})
+                  Credit Orders ({creditor._count?.orders ?? creditor.orders.length})
                 </button>
                 <button
                   onClick={() => setActiveTab("payments")}
@@ -335,7 +339,7 @@ export default function AdminCreditorDetailPage({ params }: { params: { id: stri
                       : "text-gray-500 hover:text-gray-700"
                   }`}
                 >
-                  Payment History ({creditor.payments.length})
+                  Payment History ({creditor._count?.payments ?? creditor.payments.length})
                 </button>
               </div>
             </CardHeader>

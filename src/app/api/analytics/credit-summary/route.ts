@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
       where: { locationId, currentBalance: { gt: 0 } },
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       creditSalesTotal,
       creditOrderCount,
       paymentsReceived,
@@ -89,6 +89,8 @@ export async function GET(request: NextRequest) {
       totalCreditors,
       topCreditors: creditors,
     });
+    response.headers.set("Cache-Control", "private, max-age=300");
+    return response;
   } catch (error) {
     logger.error("Error fetching credit summary:", error instanceof Error ? error : undefined);
     return NextResponse.json(

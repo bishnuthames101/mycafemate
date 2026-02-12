@@ -34,34 +34,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get pending orders count
-    const pendingOrders = await prisma.order.count({
-      where: {
-        locationId: locationId,
-        status: "PENDING",
-      },
-    });
+    const todayStart = new Date(new Date().setHours(0, 0, 0, 0));
 
-    // Get served orders today count
-    const servedToday = await prisma.order.count({
-      where: {
-        locationId: locationId,
-        status: "SERVED",
-        createdAt: {
-          gte: new Date(new Date().setHours(0, 0, 0, 0)),
-        },
-      },
-    });
-
-    // Get total orders today
-    const totalToday = await prisma.order.count({
-      where: {
-        locationId: locationId,
-        createdAt: {
-          gte: new Date(new Date().setHours(0, 0, 0, 0)),
-        },
-      },
-    });
+    const [pendingOrders, servedToday, totalToday] = await Promise.all([
+      prisma.order.count({
+        where: { locationId, status: "PENDING" },
+      }),
+      prisma.order.count({
+        where: { locationId, status: "SERVED", createdAt: { gte: todayStart } },
+      }),
+      prisma.order.count({
+        where: { locationId, createdAt: { gte: todayStart } },
+      }),
+    ]);
 
     // Get recent pending orders
     const recentOrders = await prisma.order.findMany({

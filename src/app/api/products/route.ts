@@ -58,7 +58,9 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(products);
+    const response = NextResponse.json(products);
+    response.headers.set("Cache-Control", "private, max-age=60");
+    return response;
   } catch (error) {
     logger.error("Error fetching products", error instanceof Error ? error : undefined);
     return NextResponse.json(

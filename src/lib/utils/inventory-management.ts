@@ -47,21 +47,22 @@ export async function deductInventoryForOrder(
       }
     }
 
-    // Apply deductions to inventory items (location-specific)
-    for (const [inventoryId, deductionAmount] of Array.from(inventoryDeductions.entries())) {
-      await prisma.inventoryItem.updateMany({
-        where: {
-          inventoryId,
-          inventory: {
-            locationId: order.locationId,
+    // Apply deductions to inventory items (location-specific) via batch transaction
+    const deductionOps = Array.from(inventoryDeductions.entries()).map(
+      ([inventoryId, deductionAmount]) =>
+        prisma.inventoryItem.updateMany({
+          where: {
+            inventoryId,
+            inventory: { locationId: order.locationId },
           },
-        },
-        data: {
-          currentStock: {
-            decrement: deductionAmount,
+          data: {
+            currentStock: { decrement: deductionAmount },
           },
-        },
-      });
+        })
+    );
+
+    if (deductionOps.length > 0) {
+      await prisma.$transaction(deductionOps);
     }
   } catch (error) {
     logger.error(`Error deducting inventory for order ${orderId}:`, error instanceof Error ? error : undefined);
@@ -131,11 +132,12 @@ export async function createLowStockNotifications(
     `;
 
     let notificationsCreated = 0;
+    const alertUpdateOps = [];
 
     for (const item of lowStockItems) {
       const isOutOfStock = item.currentStock <= 0;
 
-      // Use notification service to create notification
+      // Use notification service to create notification (sequential - crosses service boundary)
       await createLowStockNotification(prisma, {
         locationId,
         inventoryItemId: item.id,
@@ -146,13 +148,20 @@ export async function createLowStockNotifications(
         isOutOfStock,
       });
 
-      // Mark as alerted
-      await prisma.inventoryItem.update({
-        where: { id: item.id },
-        data: { lowStockAlerted: true },
-      });
+      // Collect alert updates for batch execution
+      alertUpdateOps.push(
+        prisma.inventoryItem.update({
+          where: { id: item.id },
+          data: { lowStockAlerted: true },
+        })
+      );
 
       notificationsCreated++;
+    }
+
+    // Batch all alert flag updates in a single transaction
+    if (alertUpdateOps.length > 0) {
+      await prisma.$transaction(alertUpdateOps);
     }
 
     return notificationsCreated;

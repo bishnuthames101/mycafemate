@@ -41,7 +41,9 @@ export async function GET(request: NextRequest) {
       limit,
       prisma
     );
-    return NextResponse.json(data);
+    const response = NextResponse.json(data);
+    response.headers.set("Cache-Control", "private, max-age=300");
+    return response;
   } catch (error) {
     logger.error("Error fetching top products:", error instanceof Error ? error : undefined);
     return NextResponse.json({ error: "Failed to fetch top products" }, { status: 500 });

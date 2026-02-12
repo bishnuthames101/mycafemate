@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await getRevenueMetrics(locationId, parseISO(startDate), parseISO(endDate), prisma);
-    return NextResponse.json(data);
+    const response = NextResponse.json(data);
+    response.headers.set("Cache-Control", "private, max-age=300");
+    return response;
   } catch (error) {
     logger.error("Error fetching revenue metrics:", error instanceof Error ? error : undefined);
     return NextResponse.json({ error: "Failed to fetch revenue metrics" }, { status: 500 });

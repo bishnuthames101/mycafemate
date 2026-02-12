@@ -59,7 +59,9 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(dailySales);
+    const response = NextResponse.json(dailySales);
+    response.headers.set("Cache-Control", "private, max-age=3600");
+    return response;
   } catch (error) {
     logger.error("Error fetching daily sales:", error instanceof Error ? error : undefined);
     return NextResponse.json(

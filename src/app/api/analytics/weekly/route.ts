@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await getWeeklySalesData(locationId, weekOffset, prisma);
-    return NextResponse.json(data);
+    const response = NextResponse.json(data);
+    response.headers.set("Cache-Control", "private, max-age=300");
+    return response;
   } catch (error) {
     logger.error("Error fetching weekly sales:", error instanceof Error ? error : undefined);
     return NextResponse.json({ error: "Failed to fetch weekly sales" }, { status: 500 });

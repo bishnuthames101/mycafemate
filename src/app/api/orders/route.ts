@@ -267,8 +267,8 @@ export async function POST(request: NextRequest) {
           : 1;
         const orderNumber = `ORD-${today}-${String(nextNum).padStart(4, "0")}`;
 
-        // Create order with items (inventory already validated above)
-        order = await prisma.order.create({
+        // Create order with items and update table status atomically
+        const orderCreateOp = prisma.order.create({
           data: {
             orderNumber,
             tableId: validatedData.tableId,
@@ -305,11 +305,18 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Update table status (separate query - non-critical if fails)
-        await prisma.table.update({
-          where: { id: validatedData.tableId },
-          data: { status: "OCCUPIED" },
-        });
+        const operations: any[] = [orderCreateOp];
+        if (validatedData.tableId) {
+          operations.push(
+            prisma.table.update({
+              where: { id: validatedData.tableId },
+              data: { status: "OCCUPIED" },
+            })
+          );
+        }
+
+        const results = await prisma.$transaction(operations);
+        order = results[0];
 
         break; // Success - exit retry loop
       } catch (error: any) {
