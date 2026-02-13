@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
+import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Package, AlertTriangle, CheckCircle, RefreshCw, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { formatDateTime } from "@/lib/utils";
-import { InventoryFormDialog } from "@/components/inventory/inventory-form-dialog";
+import dynamic from "next/dynamic";
+const InventoryFormDialog = dynamic(
+  () => import("@/components/inventory/inventory-form-dialog").then((m) => m.InventoryFormDialog),
+  { ssr: false }
+);
+import { AdminListSkeleton } from "@/components/skeletons/page-skeletons";
 
 interface InventoryItem {
   id: string;
@@ -31,34 +37,17 @@ interface InventoryItem {
 
 export default function InventoryPage() {
   const { data: session } = useSession();
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const locationId = session?.user?.locationId;
+
+  const { data: items, isLoading, mutate } = useSWR<InventoryItem[]>(
+    locationId ? `/api/inventory?locationId=${locationId}` : null
+  );
+
   const [restockingId, setRestockingId] = useState<string | null>(null);
   const [restockAmounts, setRestockAmounts] = useState<Record<string, string>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | undefined>();
   const [cleaningUp, setCleaningUp] = useState(false);
-
-  useEffect(() => {
-    fetchInventory();
-  }, [session]);
-
-  const fetchInventory = async () => {
-    if (!session?.user?.locationId) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/inventory?locationId=${session.user.locationId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setItems(data);
-      }
-    } catch (error) {
-      console.error("Error fetching inventory:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRestock = async (itemId: string) => {
     const amount = restockAmounts[itemId];
@@ -77,7 +66,7 @@ export default function InventoryPage() {
 
       if (res.ok) {
         setRestockAmounts({ ...restockAmounts, [itemId]: "" });
-        await fetchInventory();
+        mutate();
       } else {
         alert("Failed to restock inventory");
       }
@@ -97,13 +86,13 @@ export default function InventoryPage() {
       const res = await fetch("/api/admin/cleanup-inventory", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ locationId: session?.user?.locationId }),
+        body: JSON.stringify({ locationId }),
       });
 
       if (res.ok) {
         const result = await res.json();
         alert(`Cleaned up ${result.duplicatesRemoved} duplicates. ${result.itemsKept} items remaining.`);
-        await fetchInventory();
+        mutate();
       } else {
         alert("Failed to cleanup duplicates");
       }
@@ -118,19 +107,26 @@ export default function InventoryPage() {
   const handleDeleteItem = async (itemId: string, itemName: string) => {
     if (!confirm(`Are you sure you want to delete ${itemName}?`)) return;
 
+    // Optimistic removal
+    mutate(
+      (current: any) => current?.filter((i: any) => i.id !== itemId),
+      false
+    );
+
     try {
       const res = await fetch(`/api/inventory/${itemId}`, {
         method: "DELETE",
       });
 
       if (res.ok) {
-        alert("Inventory item deleted successfully");
-        await fetchInventory();
+        mutate();
       } else {
+        mutate();
         alert("Failed to delete inventory item");
       }
     } catch (error) {
       console.error("Error deleting:", error);
+      mutate();
       alert("An error occurred");
     }
   };
@@ -138,7 +134,7 @@ export default function InventoryPage() {
   const handleDialogSuccess = () => {
     setDialogOpen(false);
     setEditingItem(undefined);
-    fetchInventory();
+    mutate();
   };
 
   const getStockStatus = (item: InventoryItem) => {
@@ -155,17 +151,14 @@ export default function InventoryPage() {
     return Math.min((item.currentStock / item.maximumStock) * 100, 100);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <p>Loading inventory...</p>
-      </div>
-    );
+  if (isLoading) {
+    return <AdminListSkeleton />;
   }
 
-  const lowStockCount = items.filter(i => i.currentStock <= i.minimumStock && i.currentStock > 0).length;
-  const outOfStockCount = items.filter(i => i.currentStock <= 0).length;
-  const healthyCount = items.filter(i => i.currentStock > i.minimumStock).length;
+  const itemsList = items ?? [];
+  const lowStockCount = itemsList.filter(i => i.currentStock <= i.minimumStock && i.currentStock > 0).length;
+  const outOfStockCount = itemsList.filter(i => i.currentStock <= 0).length;
+  const healthyCount = itemsList.filter(i => i.currentStock > i.minimumStock).length;
 
   return (
     <div className="min-h-screen bg-cream-50 p-4 md:p-8">
@@ -194,7 +187,7 @@ export default function InventoryPage() {
                 <Trash2 className="h-4 w-4 mr-2" />
                 {cleaningUp ? "Cleaning..." : "Clean Duplicates"}
               </Button>
-              <Button variant="outline" onClick={fetchInventory} className="w-full sm:w-auto shrink-0">
+              <Button variant="outline" onClick={() => mutate()} className="w-full sm:w-auto shrink-0">
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
@@ -213,7 +206,7 @@ export default function InventoryPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Items</p>
-                  <p className="text-3xl font-bold text-coffee-700">{items.length}</p>
+                  <p className="text-3xl font-bold text-coffee-700">{itemsList.length}</p>
                 </div>
                 <Package className="h-8 w-8 text-blue-600" />
               </div>
@@ -264,7 +257,7 @@ export default function InventoryPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {items.map((item) => {
+              {itemsList.map((item) => {
                 const status = getStockStatus(item);
                 const StatusIcon = status.icon;
                 const percentage = getStockPercentage(item);
@@ -362,7 +355,7 @@ export default function InventoryPage() {
                 );
               })}
 
-              {items.length === 0 && (
+              {itemsList.length === 0 && (
                 <p className="text-center text-muted-foreground py-8">
                   No inventory items found
                 </p>

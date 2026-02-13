@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import useSWR from "swr";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, CheckCircle, Clock, RefreshCw, Loader2 } from "lucide-react";
-
-const POLLING_INTERVAL = 7000; // 7 seconds
+import { ClipboardList, CheckCircle, Clock, RefreshCw } from "lucide-react";
+import { KitchenDashSkeleton } from "@/components/skeletons/page-skeletons";
 
 interface OrderItem {
   id: string;
@@ -36,72 +35,27 @@ interface DashboardStats {
 
 export default function KitchenDashboard() {
   const { data: session, status } = useSession();
-  const [stats, setStats] = useState<DashboardStats>({
+  const locationId = session?.user?.locationId;
+
+  const { data: stats, isLoading, isValidating } = useSWR<DashboardStats>(
+    locationId ? `/api/kitchen/stats?locationId=${locationId}` : null,
+    { refreshInterval: 7000 }
+  );
+
+  if (status === "loading" || isLoading) {
+    return <KitchenDashSkeleton />;
+  }
+
+  if (!locationId) {
+    return <div>No location assigned</div>;
+  }
+
+  const displayStats = stats ?? {
     pendingOrders: 0,
     servedToday: 0,
     totalToday: 0,
     recentOrders: [],
-  });
-  const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-
-  const fetchStats = useCallback(async () => {
-    if (!session?.user?.locationId) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/kitchen/stats?locationId=${session.user.locationId}`);
-
-      if (!res.ok) {
-        throw new Error("Failed to fetch stats");
-      }
-
-      const data = await res.json();
-      setStats(data);
-      setLastUpdate(new Date());
-    } catch (err) {
-      console.error("Error fetching stats:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.user?.locationId]);
-
-  // Initial fetch
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetchStats();
-    }
-  }, [fetchStats, status]);
-
-  // Polling for updates
-  useEffect(() => {
-    if (status !== "authenticated") return;
-
-    const interval = setInterval(() => {
-      fetchStats();
-    }, POLLING_INTERVAL);
-
-    return () => clearInterval(interval);
-  }, [fetchStats, status]);
-
-  if (status === "loading" || (loading && stats.pendingOrders === 0)) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <Card className="p-8">
-          <CardContent className="flex items-center space-x-3">
-            <Loader2 className="h-6 w-6 animate-spin text-coffee-600" />
-            <span className="text-coffee-700 font-medium">Loading dashboard...</span>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!session?.user?.locationId) {
-    return <div>No location assigned</div>;
-  }
+  };
 
   return (
     <div className="min-h-screen bg-cream-50 p-4 md:p-8">
@@ -113,12 +67,12 @@ export default function KitchenDashboard() {
               Kitchen Dashboard
             </h1>
             <p className="text-sm md:text-base text-coffee-600 mt-1 md:mt-2">
-              Hello, {session.user.name}! Monitor and manage incoming orders.
+              Hello, {session?.user?.name}! Monitor and manage incoming orders.
             </p>
           </div>
           <div className="flex items-center space-x-2 text-sm text-coffee-500">
-            <RefreshCw className="h-4 w-4 animate-spin" />
-            <span>Last updated: {lastUpdate.toLocaleTimeString()}</span>
+            {isValidating && <RefreshCw className="h-4 w-4 animate-spin" />}
+            <span>Live</span>
           </div>
         </div>
 
@@ -132,7 +86,7 @@ export default function KitchenDashboard() {
               <Clock className="h-5 w-5 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-yellow-900">{stats.pendingOrders}</div>
+              <div className="text-3xl font-bold text-yellow-900">{displayStats.pendingOrders}</div>
               <p className="text-xs text-yellow-700 mt-1">
                 Orders waiting to be prepared
               </p>
@@ -147,7 +101,7 @@ export default function KitchenDashboard() {
               <CheckCircle className="h-5 w-5 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-900">{stats.servedToday}</div>
+              <div className="text-3xl font-bold text-green-900">{displayStats.servedToday}</div>
               <p className="text-xs text-green-700 mt-1">
                 Orders completed today
               </p>
@@ -162,7 +116,7 @@ export default function KitchenDashboard() {
               <ClipboardList className="h-5 w-5 text-coffee-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-coffee-900">{stats.totalToday}</div>
+              <div className="text-3xl font-bold text-coffee-900">{displayStats.totalToday}</div>
               <p className="text-xs text-coffee-700 mt-1">
                 All orders received today
               </p>
@@ -191,13 +145,13 @@ export default function KitchenDashboard() {
             <CardTitle>Recent Pending Orders</CardTitle>
           </CardHeader>
           <CardContent>
-            {stats.recentOrders.length === 0 ? (
+            {displayStats.recentOrders.length === 0 ? (
               <p className="text-coffee-500 text-center py-8">
                 No pending orders at the moment
               </p>
             ) : (
               <div className="space-y-3">
-                {stats.recentOrders.map((order) => (
+                {displayStats.recentOrders.map((order) => (
                   <div
                     key={order.id}
                     className="border border-coffee-200 rounded-lg p-4 bg-white hover:bg-cream-50 transition-colors"

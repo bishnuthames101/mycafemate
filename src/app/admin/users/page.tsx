@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSession } from "next-auth/react";
 import { Eye, EyeOff } from "lucide-react";
+import { AdminListSkeleton } from "@/components/skeletons/page-skeletons";
 
 interface User {
   id: string;
@@ -140,11 +141,7 @@ export default function UsersPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-600">Loading users...</p>
-      </div>
-    );
+    return <AdminListSkeleton />;
   }
 
   return (

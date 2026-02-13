@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, UserPlus, Search, DollarSign } from "lucide-react";
+import { ArrowLeft, UserPlus, Search } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
-import { CreditorFormDialog } from "@/components/creditors/creditor-form-dialog";
+import dynamic from "next/dynamic";
+const CreditorFormDialog = dynamic(
+  () => import("@/components/creditors/creditor-form-dialog").then((m) => m.CreditorFormDialog),
+  { ssr: false }
+);
 import {
   Select,
   SelectContent,
@@ -16,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AdminListSkeleton } from "@/components/skeletons/page-skeletons";
 
 interface Creditor {
   id: string;
@@ -41,58 +47,29 @@ interface Location {
 
 export default function AdminCreditorsPage() {
   const router = useRouter();
-  const [creditors, setCreditors] = useState<Creditor[]>([]);
-  const [filteredCreditors, setFilteredCreditors] = useState<Creditor[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const { data: creditors, isLoading: cLoading, mutate } = useSWR<Creditor[]>("/api/creditors");
+  const { data: locations, isLoading: lLoading } = useSWR<Location[]>("/api/locations");
+
   const [selectedLocation, setSelectedLocation] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const filteredCreditors = useMemo(() => {
+    let filtered = creditors ?? [];
 
-  useEffect(() => {
-    filterCreditors();
-  }, [creditors, selectedLocation, searchQuery]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const creditorsRes = await fetch("/api/creditors");
-      const locationsRes = await fetch("/api/locations");
-
-      if (creditorsRes.ok && locationsRes.ok) {
-        const creditorsData = await creditorsRes.json();
-        const locationsData = await locationsRes.json();
-        setCreditors(creditorsData);
-        setLocations(locationsData);
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterCreditors = () => {
-    let filtered = creditors;
-
-    // Filter by location
     if (selectedLocation !== "ALL") {
-      filtered = filtered.filter((creditor) => creditor.locationId === selectedLocation);
+      filtered = filtered.filter((c) => c.locationId === selectedLocation);
     }
 
-    // Filter by search query
     if (searchQuery) {
-      filtered = filtered.filter((creditor) =>
-        creditor.name.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = filtered.filter((c) =>
+        c.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    setFilteredCreditors(filtered);
-  };
+    return filtered;
+  }, [creditors, selectedLocation, searchQuery]);
 
   const handleCreditorClick = (creditorId: string) => {
     router.push(`/admin/creditors/${creditorId}`);
@@ -100,16 +77,14 @@ export default function AdminCreditorsPage() {
 
   const handleCreateSuccess = () => {
     setShowCreateDialog(false);
-    fetchData();
+    mutate();
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <p>Loading creditors...</p>
-      </div>
-    );
+  if (cLoading || lLoading) {
+    return <AdminListSkeleton />;
   }
+
+  const locationsList = locations ?? [];
 
   // Calculate stats
   const totalCreditors = filteredCreditors.length;
@@ -128,7 +103,7 @@ export default function AdminCreditorsPage() {
       <CreditorFormDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
-        locationId={selectedLocation !== "ALL" ? selectedLocation : locations[0]?.id || ""}
+        locationId={selectedLocation !== "ALL" ? selectedLocation : locationsList[0]?.id || ""}
         onSuccess={handleCreateSuccess}
       />
 
@@ -224,7 +199,7 @@ export default function AdminCreditorsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Locations</SelectItem>
-                    {locations.map((location) => (
+                    {locationsList.map((location) => (
                       <SelectItem key={location.id} value={location.id}>
                         {location.name}
                       </SelectItem>

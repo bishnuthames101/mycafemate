@@ -7,14 +7,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { PaymentStatusBadge } from "@/components/orders/payment-status-badge";
+import dynamic from "next/dynamic";
 import { OrderInvoice } from "@/components/orders/order-invoice";
-import { PaymentFlowDialog } from "@/components/orders/payment-flow-dialog";
+const PaymentFlowDialog = dynamic(
+  () => import("@/components/orders/payment-flow-dialog").then((m) => m.PaymentFlowDialog),
+  { ssr: false }
+);
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { ArrowLeft, FileText, Package, CreditCard, Plus, X } from "lucide-react";
 import Link from "next/link";
-import { ChangeTableDialog } from "@/components/orders/change-table-dialog";
-import { AddItemsDialog } from "@/components/orders/add-items-dialog";
+const ChangeTableDialog = dynamic(
+  () => import("@/components/orders/change-table-dialog").then((m) => m.ChangeTableDialog),
+  { ssr: false }
+);
+const AddItemsDialog = dynamic(
+  () => import("@/components/orders/add-items-dialog").then((m) => m.AddItemsDialog),
+  { ssr: false }
+);
 import { MODIFIABLE_ORDER_STATUSES } from "@/lib/validations/order";
+import { OrderDetailSkeleton } from "@/components/skeletons/page-skeletons";
 
 interface OrderWithRelations extends Order {
   items: (OrderItem & { product: Product })[];
@@ -66,6 +77,8 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   };
 
   const updateStatus = async (newStatus: OrderStatus) => {
+    // Optimistic update
+    setOrder((prev) => prev ? { ...prev, status: newStatus } : prev);
     setIsUpdating(true);
     try {
       const res = await fetch(`/api/orders/${params.id}`, {
@@ -80,20 +93,20 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         if (newStatus === "COMPLETED") {
           router.push("/staff/orders");
         }
+      } else {
+        // Revert on failure
+        fetchOrder();
       }
     } catch (error) {
       console.error("Error updating order:", error);
+      fetchOrder(); // Revert
     } finally {
       setIsUpdating(false);
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
+    return <OrderDetailSkeleton />;
   }
 
   if (!order) {

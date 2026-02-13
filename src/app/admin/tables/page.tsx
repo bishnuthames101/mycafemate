@@ -1,15 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Plus, Search, Edit, Trash2, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
-import { TableFormDialog } from "@/components/tables/table-form-dialog";
+import dynamic from "next/dynamic";
+const TableFormDialog = dynamic(
+  () => import("@/components/tables/table-form-dialog").then((m) => m.TableFormDialog),
+  { ssr: false }
+);
+import { AdminListSkeleton } from "@/components/skeletons/page-skeletons";
+import { useTables } from "@/lib/hooks/use-tables";
 
-interface Table {
+interface TableItem {
   id: string;
   number: string;
   capacity: number;
@@ -19,45 +25,19 @@ interface Table {
 
 export default function TablesPage() {
   const { data: session } = useSession();
-  const [tables, setTables] = useState<Table[]>([]);
-  const [filteredTables, setFilteredTables] = useState<Table[]>([]);
-  const [loading, setLoading] = useState(true);
+  const locationId = session?.user?.locationId;
+
+  const { allTables: tables, isLoading, mutate } = useTables({ locationId });
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [showTableDialog, setShowTableDialog] = useState(false);
-  const [editingTable, setEditingTable] = useState<Table | null>(null);
+  const [editingTable, setEditingTable] = useState<TableItem | null>(null);
 
   const statuses = ["ALL", "AVAILABLE", "OCCUPIED", "RESERVED", "CLEANING"];
 
-  useEffect(() => {
-    if (session?.user?.locationId) {
-      fetchTables();
-    }
-  }, [session]);
-
-  useEffect(() => {
-    filterTables();
-  }, [tables, searchQuery, selectedStatus]);
-
-  const fetchTables = async () => {
-    if (!session?.user?.locationId) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/tables?locationId=${session.user.locationId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTables(data);
-      }
-    } catch (error) {
-      console.error("Error fetching tables:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterTables = () => {
-    let filtered = tables;
+  const filteredTables = useMemo(() => {
+    let filtered = tables as TableItem[];
 
     if (selectedStatus !== "ALL") {
       filtered = filtered.filter((t) => t.status === selectedStatus);
@@ -69,32 +49,38 @@ export default function TablesPage() {
       );
     }
 
-    setFilteredTables(filtered);
-  };
+    return filtered;
+  }, [tables, searchQuery, selectedStatus]);
 
   const handleDelete = async (tableId: string) => {
     if (!confirm("Are you sure you want to delete this table?")) {
       return;
     }
 
+    // Optimistic removal
+    mutate(
+      (current: any) => current?.filter((t: any) => t.id !== tableId),
+      false
+    );
+
     try {
       const res = await fetch(`/api/tables/${tableId}`, {
         method: "DELETE",
       });
 
-      if (res.ok) {
-        await fetchTables();
-      } else {
+      if (!res.ok) {
         const error = await res.json();
         alert(error.error || "Failed to delete table");
       }
+      mutate();
     } catch (error) {
       console.error("Error deleting table:", error);
+      mutate();
       alert("An error occurred");
     }
   };
 
-  const handleEdit = (table: Table) => {
+  const handleEdit = (table: TableItem) => {
     setEditingTable(table);
     setShowTableDialog(true);
   };
@@ -110,21 +96,17 @@ export default function TablesPage() {
   };
 
   const handleSuccess = () => {
-    fetchTables();
+    mutate();
     handleDialogClose();
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <p>Loading tables...</p>
-      </div>
-    );
+  if (isLoading) {
+    return <AdminListSkeleton />;
   }
 
   const statusStats = statuses.slice(1).map((stat) => ({
     status: stat,
-    count: tables.filter((t) => t.status === stat).length,
+    count: (tables as TableItem[]).filter((t) => t.status === stat).length,
   }));
 
   const getStatusColor = (status: string) => {

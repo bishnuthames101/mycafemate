@@ -1,9 +1,19 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { preload } from "swr";
 import { Card, CardContent } from "@/components/ui/card";
 import { BarChart3, Package, Users, Coffee, UtensilsCrossed, ShoppingCart, UserPlus, Tag } from "lucide-react";
 import Link from "next/link";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+// Map card hrefs to their API endpoints for prefetching
+const prefetchMap: Record<string, string> = {
+  "/admin/products": "/api/products",
+  "/admin/categories": "/api/categories",
+  "/admin/creditors": "/api/creditors",
+};
 
 const dashboardCards = [
   {
@@ -82,6 +92,25 @@ const dashboardCards = [
 
 export default function AdminDashboard() {
   const { data: session } = useSession();
+  const locationId = session?.user?.locationId;
+
+  const handlePrefetch = (href: string) => {
+    // Prefetch generic APIs
+    const apiUrl = prefetchMap[href];
+    if (apiUrl) {
+      preload(apiUrl, fetcher);
+    }
+
+    // Prefetch location-specific APIs
+    if (locationId) {
+      if (href === "/admin/tables") {
+        preload(`/api/tables?locationId=${locationId}`, fetcher);
+      }
+      if (href === "/admin/inventory") {
+        preload(`/api/inventory?locationId=${locationId}`, fetcher);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-cream-50 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
@@ -101,7 +130,12 @@ export default function AdminDashboard() {
           {dashboardCards.map((card) => {
             const Icon = card.icon;
             return (
-              <Link key={card.href} href={card.href}>
+              <Link
+                key={card.href}
+                href={card.href}
+                onMouseEnter={() => handlePrefetch(card.href)}
+                onTouchStart={() => handlePrefetch(card.href)}
+              >
                 <Card className="hover:shadow-cafe-lg transition-all cursor-pointer h-full">
                   <CardContent className="p-4 sm:p-5 lg:pt-6">
                     <div className="flex items-start justify-between gap-2">

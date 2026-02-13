@@ -3,17 +3,30 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RevenueChart } from "@/components/analytics/revenue-chart";
-import { CategoryChart } from "@/components/analytics/category-chart";
-import { TopProductsChart } from "@/components/analytics/top-products-chart";
+import { Skeleton } from "@/components/ui/skeleton";
 import { MetricCard } from "@/components/analytics/metric-card";
 import { DollarSign, ShoppingCart, TrendingUp, Calendar, ArrowLeft, UserPlus } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { subDays, format } from "date-fns";
 import Link from "next/link";
+import { ReportsSkeleton } from "@/components/skeletons/page-skeletons";
+
+const RevenueChart = dynamic(
+  () => import("@/components/analytics/revenue-chart").then((m) => m.RevenueChart),
+  { loading: () => <Skeleton className="h-[300px] w-full" /> }
+);
+const CategoryChart = dynamic(
+  () => import("@/components/analytics/category-chart").then((m) => m.CategoryChart),
+  { loading: () => <Skeleton className="h-[300px] w-full" /> }
+);
+const TopProductsChart = dynamic(
+  () => import("@/components/analytics/top-products-chart").then((m) => m.TopProductsChart),
+  { loading: () => <Skeleton className="h-[300px] w-full" /> }
+);
 
 export default function ReportsPage() {
   const { data: session } = useSession();
@@ -92,11 +105,7 @@ export default function ReportsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <p>Loading analytics...</p>
-      </div>
-    );
+    return <ReportsSkeleton />;
   }
 
   return (

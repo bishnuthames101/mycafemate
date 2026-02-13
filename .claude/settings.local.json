@@ -104,7 +104,14 @@
       "Bash(cmd /c \"copy /Y NUL E:\\\\cafemate\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node\")",
       "Bash(npm ls:*)",
       "Bash(grep:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(git push)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(head:*)",
+      "Bash(git push:*)",
+      "Bash(git diff:*)",
+      "Bash(pkill:*)"
     ]
   }
 }

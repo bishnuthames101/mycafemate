@@ -1,14 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Plus, Search, Edit, Trash2, Coffee } from "lucide-react";
 import Link from "next/link";
-import { ProductFormDialog } from "@/components/products/product-form-dialog";
+import dynamic from "next/dynamic";
+const ProductFormDialog = dynamic(
+  () => import("@/components/products/product-form-dialog").then((m) => m.ProductFormDialog),
+  { ssr: false }
+);
 import { formatCurrency } from "@/lib/utils";
+import { AdminListSkeleton } from "@/components/skeletons/page-skeletons";
+import { useProducts } from "@/lib/hooks/use-products";
+import { useCategories } from "@/lib/hooks/use-categories";
 
 interface Product {
   id: string;
@@ -21,53 +28,21 @@ interface Product {
 
 export default function ProductsPage() {
   const { data: session } = useSession();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { products, isLoading: pLoading, mutate } = useProducts();
+  const { categories, isLoading: cLoading } = useCategories();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [categories, setCategories] = useState<string[]>(["ALL"]);
 
-  useEffect(() => {
-    fetchProducts();
-    fetchCategories();
-  }, []);
+  const categorySlugs = useMemo(
+    () => ["ALL", ...categories.map((c) => c.slug)],
+    [categories]
+  );
 
-  const fetchCategories = async () => {
-    try {
-      const res = await fetch("/api/categories");
-      if (res.ok) {
-        const data = await res.json();
-        setCategories(["ALL", ...data.map((c: any) => c.slug)]);
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-    }
-  };
-
-  useEffect(() => {
-    filterProducts();
-  }, [products, searchQuery, selectedCategory]);
-
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/products");
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data);
-      }
-    } catch (error) {
-      console.error("Error fetching products:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filterProducts = () => {
-    let filtered = products;
+  const filteredProducts = useMemo(() => {
+    let filtered = products as Product[];
 
     if (selectedCategory !== "ALL") {
       filtered = filtered.filter((p) => p.category === selectedCategory);
@@ -79,26 +54,32 @@ export default function ProductsPage() {
       );
     }
 
-    setFilteredProducts(filtered);
-  };
+    return filtered;
+  }, [products, searchQuery, selectedCategory]);
 
   const handleDelete = async (productId: string) => {
     if (!confirm("Are you sure you want to delete this product?")) {
       return;
     }
 
+    // Optimistic removal
+    mutate(
+      (current: any) => current?.filter((p: any) => p.id !== productId),
+      false
+    );
+
     try {
       const res = await fetch(`/api/products/${productId}`, {
         method: "DELETE",
       });
 
-      if (res.ok) {
-        await fetchProducts();
-      } else {
+      if (!res.ok) {
         alert("Failed to delete product");
       }
+      mutate();
     } catch (error) {
       console.error("Error deleting product:", error);
+      mutate();
       alert("An error occurred");
     }
   };
@@ -119,21 +100,17 @@ export default function ProductsPage() {
   };
 
   const handleSuccess = () => {
-    fetchProducts();
+    mutate();
     handleDialogClose();
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <p>Loading products...</p>
-      </div>
-    );
+  if (pLoading || cLoading) {
+    return <AdminListSkeleton />;
   }
 
-  const categoryStats = categories.slice(1).map((cat) => ({
+  const categoryStats = categorySlugs.slice(1).map((cat) => ({
     category: cat,
-    count: products.filter((p) => p.category === cat).length,
+    count: (products as Product[]).filter((p) => p.category === cat).length,
   }));
 
   return (
@@ -208,7 +185,7 @@ export default function ProductsPage() {
                   />
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  {categories.map((cat) => (
+                  {categorySlugs.map((cat) => (
                     <Button
                       key={cat}
                       variant={selectedCategory === cat ? "default" : "outline"}

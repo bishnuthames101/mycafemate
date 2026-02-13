@@ -10,6 +10,7 @@ import { OrderFilters } from "@/components/orders/order-filters";
 import { OrderCard } from "@/components/orders/order-card";
 import { formatCurrency } from "@/lib/utils";
 import { Order, OrderItem, Product, User, Table, Location } from "@prisma/client";
+import { AdminOrdersSkeleton } from "@/components/skeletons/page-skeletons";
 
 interface OrderWithRelations extends Order {
   items: (OrderItem & { product: Product })[];
@@ -105,11 +106,7 @@ export default function AdminOrdersPage() {
     : orders;
 
   if (loading && orders.length === 0) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <p>Loading orders...</p>
-      </div>
-    );
+    return <AdminOrdersSkeleton />;
   }
 
   // Stats from pagination total

@@ -1,65 +1,41 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, Edit, Trash2, Tag } from "lucide-react";
 import Link from "next/link";
-import { CategoryFormDialog } from "@/components/categories/category-form-dialog";
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  sortOrder: number;
-  isActive: boolean;
-}
+import dynamic from "next/dynamic";
+const CategoryFormDialog = dynamic(
+  () => import("@/components/categories/category-form-dialog").then((m) => m.CategoryFormDialog),
+  { ssr: false }
+);
+import { AdminListSkeleton } from "@/components/skeletons/page-skeletons";
+import { useCategories, Category } from "@/lib/hooks/use-categories";
+import { useProducts } from "@/lib/hooks/use-products";
 
 interface CategoryWithCount extends Category {
   productCount: number;
 }
 
 export default function CategoriesPage() {
-  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { categories, isLoading: cLoading, mutate: mutateCategories } = useCategories();
+  const { products, isLoading: pLoading, mutate: mutateProducts } = useProducts();
+
   const [showDialog, setShowDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
-    setLoading(true);
-    try {
-      const [catRes, prodRes] = await Promise.all([
-        fetch("/api/categories"),
-        fetch("/api/products"),
-      ]);
-
-      if (catRes.ok) {
-        const cats: Category[] = await catRes.json();
-        const products: any[] = prodRes.ok ? await prodRes.json() : [];
-
-        // Count products per category slug
-        const countMap: Record<string, number> = {};
-        for (const p of products) {
-          countMap[p.category] = (countMap[p.category] || 0) + 1;
-        }
-
-        setCategories(
-          cats.map((c) => ({
-            ...c,
-            productCount: countMap[c.slug] || 0,
-          }))
-        );
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-    } finally {
-      setLoading(false);
+  const categoriesWithCounts: CategoryWithCount[] = useMemo(() => {
+    const countMap: Record<string, number> = {};
+    for (const p of products) {
+      const cat = (p as any).category;
+      countMap[cat] = (countMap[cat] || 0) + 1;
     }
-  };
+    return categories.map((c) => ({
+      ...c,
+      productCount: countMap[c.slug] || 0,
+    }));
+  }, [categories, products]);
 
   const handleDelete = async (category: CategoryWithCount) => {
     if (category.productCount > 0) {
@@ -73,19 +49,25 @@ export default function CategoriesPage() {
       return;
     }
 
+    // Optimistic removal
+    mutateCategories(
+      (current: any) => current?.filter((c: any) => c.id !== category.id),
+      false
+    );
+
     try {
       const res = await fetch(`/api/categories/${category.id}`, {
         method: "DELETE",
       });
 
-      if (res.ok) {
-        fetchCategories();
-      } else {
+      if (!res.ok) {
         const error = await res.json();
         alert(error.error || "Failed to delete category");
       }
+      mutateCategories();
     } catch (error) {
       console.error("Error deleting category:", error);
+      mutateCategories();
       alert("An error occurred");
     }
   };
@@ -106,16 +88,13 @@ export default function CategoriesPage() {
   };
 
   const handleSuccess = () => {
-    fetchCategories();
+    mutateCategories();
+    mutateProducts();
     handleDialogClose();
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
-        <p>Loading categories...</p>
-      </div>
-    );
+  if (cLoading || pLoading) {
+    return <AdminListSkeleton />;
   }
 
   return (
@@ -155,7 +134,7 @@ export default function CategoriesPage() {
           {/* Categories Table */}
           <Card>
             <CardContent className="pt-6">
-              {categories.length === 0 ? (
+              {categoriesWithCounts.length === 0 ? (
                 <div className="text-center py-12">
                   <Tag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No categories found</p>
@@ -173,9 +152,9 @@ export default function CategoriesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {categories.map((cat) => (
+                      {categoriesWithCounts.map((cat) => (
                         <tr key={cat.id} className="border-b last:border-0">
-                          <td className="py-3 text-sm">{cat.sortOrder}</td>
+                          <td className="py-3 text-sm">{(cat as any).sortOrder}</td>
                           <td className="py-3">
                             <span className="font-medium">{cat.name}</span>
                           </td>
