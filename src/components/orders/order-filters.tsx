@@ -5,7 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, Calendar } from "lucide-react";
+
+export type DateRange = "today" | "week" | "month" | "all";
 
 interface OrderFiltersProps {
   locations: Location[];
@@ -15,6 +17,8 @@ interface OrderFiltersProps {
   onLocationChange: (locationId: string) => void;
   onStatusChange: (status: string) => void;
   onSearchChange: (query: string) => void;
+  selectedDateRange?: DateRange;
+  onDateRangeChange?: (range: DateRange) => void;
 }
 
 const statuses = [
@@ -25,6 +29,13 @@ const statuses = [
   { value: "CANCELLED", label: "Cancelled" },
 ];
 
+const dateRanges: { value: DateRange; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+  { value: "all", label: "All Time" },
+];
+
 export function OrderFilters({
   locations,
   selectedLocation,
@@ -33,10 +44,12 @@ export function OrderFilters({
   onLocationChange,
   onStatusChange,
   onSearchChange,
+  selectedDateRange = "today",
+  onDateRangeChange,
 }: OrderFiltersProps) {
   return (
     <Card>
-      <CardContent className="pt-6">
+      <CardContent className="pt-6 space-y-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -60,6 +73,23 @@ export function OrderFilters({
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4">
+          {onDateRangeChange && (
+            <div className="flex gap-2 flex-wrap items-center">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              {dateRanges.map((range) => (
+                <Button
+                  key={range.value}
+                  variant={selectedDateRange === range.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onDateRangeChange(range.value)}
+                >
+                  {range.label}
+                </Button>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2 flex-wrap">
             {statuses.map((status) => (
               <Button

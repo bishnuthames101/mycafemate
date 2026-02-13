@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { OrderFilters } from "@/components/orders/order-filters";
+import { OrderFilters, DateRange } from "@/components/orders/order-filters";
 import { OrderCard } from "@/components/orders/order-card";
 import { formatCurrency } from "@/lib/utils";
 import { Order, OrderItem, Product, User, Table, Location } from "@prisma/client";
@@ -37,6 +37,7 @@ export default function AdminOrdersPage() {
   const [selectedLocation, setSelectedLocation] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRange>("today");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
 
@@ -47,6 +48,25 @@ export default function AdminOrdersPage() {
       .then(setLocations)
       .catch(() => {});
   }, []);
+
+  // Compute start/end dates from the selected date range preset
+  function getDateRange(range: DateRange): { startDate?: string; endDate?: string } {
+    const now = new Date();
+    if (range === "all") return {};
+    if (range === "today") {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return { startDate: start.toISOString() };
+    }
+    if (range === "week") {
+      const day = now.getDay(); // 0=Sun
+      const diff = day === 0 ? 6 : day - 1; // Monday as start
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+      return { startDate: start.toISOString() };
+    }
+    // month
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { startDate: start.toISOString() };
+  }
 
   // Fetch orders when page, filters change
   const fetchOrders = useCallback(async () => {
@@ -61,6 +81,9 @@ export default function AdminOrdersPage() {
       if (selectedStatus !== "ALL") {
         params.set("status", selectedStatus);
       }
+      const { startDate, endDate } = getDateRange(selectedDateRange);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
 
       const res = await fetch(`/api/orders?${params.toString()}`);
       if (res.ok) {
@@ -73,7 +96,7 @@ export default function AdminOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedLocation, selectedStatus]);
+  }, [page, selectedLocation, selectedStatus, selectedDateRange]);
 
   useEffect(() => {
     fetchOrders();
@@ -87,6 +110,11 @@ export default function AdminOrdersPage() {
 
   const handleStatusChange = (status: string) => {
     setSelectedStatus(status);
+    setPage(1);
+  };
+
+  const handleDateRangeChange = (range: DateRange) => {
+    setSelectedDateRange(range);
     setPage(1);
   };
 
@@ -113,13 +141,13 @@ export default function AdminOrdersPage() {
   const totalOrders = pagination?.total ?? 0;
   const totalRevenue = displayedOrders.reduce((sum, order) => sum + order.total, 0);
   const pendingOrders = displayedOrders.filter((order) => order.status === "PENDING").length;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const completedToday = displayedOrders.filter(
-    (order) =>
-      order.status === "COMPLETED" &&
-      new Date(order.createdAt).setHours(0, 0, 0, 0) === today.getTime()
-  ).length;
+  const completedOrders = displayedOrders.filter((order) => order.status === "COMPLETED").length;
+  const dateRangeLabel: Record<DateRange, string> = {
+    today: "Today",
+    week: "This Week",
+    month: "This Month",
+    all: "All Time",
+  };
 
   return (
     <div className="min-h-screen bg-cream-50 p-4 md:p-8">
@@ -152,7 +180,7 @@ export default function AdminOrdersPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Total Orders</p>
+                <p className="text-sm text-muted-foreground">Orders ({dateRangeLabel[selectedDateRange]})</p>
                 <p className="text-2xl font-bold text-coffee-700">{totalOrders}</p>
               </div>
             </CardContent>
@@ -160,7 +188,7 @@ export default function AdminOrdersPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Page Revenue</p>
+                <p className="text-sm text-muted-foreground">Revenue (page)</p>
                 <p className="text-2xl font-bold text-coffee-700">{formatCurrency(totalRevenue)}</p>
               </div>
             </CardContent>
@@ -176,8 +204,8 @@ export default function AdminOrdersPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Completed Today</p>
-                <p className="text-2xl font-bold text-coffee-700">{completedToday}</p>
+                <p className="text-sm text-muted-foreground">Completed (page)</p>
+                <p className="text-2xl font-bold text-coffee-700">{completedOrders}</p>
               </div>
             </CardContent>
           </Card>
@@ -192,6 +220,8 @@ export default function AdminOrdersPage() {
           onLocationChange={handleLocationChange}
           onStatusChange={handleStatusChange}
           onSearchChange={handleSearchChange}
+          selectedDateRange={selectedDateRange}
+          onDateRangeChange={handleDateRangeChange}
         />
 
         {/* Orders Grid */}

@@ -125,10 +125,19 @@ export async function GET(request: NextRequest) {
         : status as OrderStatus
       : undefined;
 
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+
     const whereClause = {
       ...(locationId && { locationId }),
       ...(statusFilter && { status: statusFilter }),
       ...(tableId && { tableId }),
+      ...(startDate && {
+        createdAt: {
+          gte: new Date(startDate),
+          ...(endDate && { lte: new Date(endDate) }),
+        },
+      }),
     };
 
     // Optimized select for order lists (excludes unnecessary fields)
