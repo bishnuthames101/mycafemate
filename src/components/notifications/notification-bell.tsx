@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Bell } from "lucide-react";
 import { NotificationDropdown } from "./notification-dropdown";
 import { playNotificationSound } from "@/lib/utils/notification-sound";
+import { usePageVisibility } from "@/lib/hooks/use-visibility";
 
 interface NotificationBellProps {
   locationId?: string;
@@ -15,6 +16,7 @@ export function NotificationBell({ locationId }: NotificationBellProps) {
   const previousCountRef = useRef<number>(0);
   const hasInteractedRef = useRef(false);
   const isFirstFetchRef = useRef(true);
+  const isVisible = usePageVisibility();
 
   // Track user interaction to enable sound (browsers require interaction first)
   useEffect(() => {
@@ -56,13 +58,16 @@ export function NotificationBell({ locationId }: NotificationBellProps) {
     }
   }, [locationId]);
 
-  // Poll for unread count every 30 seconds
+  // Poll for unread count every 30 seconds, pause when tab is hidden
   useEffect(() => {
+    if (!isVisible) return;
+
+    // Fetch immediately when becoming visible
     fetchUnreadCount();
 
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+  }, [fetchUnreadCount, isVisible]);
 
   // Refresh count when dropdown closes
   const handleDropdownClose = () => {

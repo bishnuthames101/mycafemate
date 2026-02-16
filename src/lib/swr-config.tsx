@@ -33,8 +33,6 @@ export function SWRProvider({ children }: SWRProviderProps) {
         // Error retry configuration
         errorRetryCount: 3,
         errorRetryInterval: 5000,
-        // Cache provider (use default in-memory cache)
-        provider: () => new Map(),
       }}
     >
       {children}

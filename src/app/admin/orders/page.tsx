@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react";
@@ -19,27 +20,45 @@ interface OrderWithRelations extends Order {
   location?: Location | null;
 }
 
-interface PaginationInfo {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-  hasMore: boolean;
+interface PaginatedResponse {
+  orders: OrderWithRelations[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+  };
 }
 
 const PAGE_SIZE = 20;
 
+function getDateRange(range: DateRange): { startDate?: string; endDate?: string } {
+  const now = new Date();
+  if (range === "all") return {};
+  if (range === "today") {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return { startDate: start.toISOString() };
+  }
+  if (range === "week") {
+    const day = now.getDay(); // 0=Sun
+    const diff = day === 0 ? 6 : day - 1; // Monday as start
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+    return { startDate: start.toISOString() };
+  }
+  // month
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  return { startDate: start.toISOString() };
+}
+
 export default function AdminOrdersPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState<OrderWithRelations[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange>("today");
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
 
   // Fetch locations once on mount
   useEffect(() => {
@@ -49,58 +68,32 @@ export default function AdminOrdersPage() {
       .catch(() => {});
   }, []);
 
-  // Compute start/end dates from the selected date range preset
-  function getDateRange(range: DateRange): { startDate?: string; endDate?: string } {
-    const now = new Date();
-    if (range === "all") return {};
-    if (range === "today") {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return { startDate: start.toISOString() };
+  // Build SWR key from filters
+  const swrKey = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(PAGE_SIZE));
+    if (selectedLocation !== "ALL") {
+      params.set("locationId", selectedLocation);
     }
-    if (range === "week") {
-      const day = now.getDay(); // 0=Sun
-      const diff = day === 0 ? 6 : day - 1; // Monday as start
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
-      return { startDate: start.toISOString() };
+    if (selectedStatus !== "ALL") {
+      params.set("status", selectedStatus);
     }
-    // month
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { startDate: start.toISOString() };
-  }
+    const { startDate, endDate } = getDateRange(selectedDateRange);
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
 
-  // Fetch orders when page, filters change
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("limit", String(PAGE_SIZE));
-      if (selectedLocation !== "ALL") {
-        params.set("locationId", selectedLocation);
-      }
-      if (selectedStatus !== "ALL") {
-        params.set("status", selectedStatus);
-      }
-      const { startDate, endDate } = getDateRange(selectedDateRange);
-      if (startDate) params.set("startDate", startDate);
-      if (endDate) params.set("endDate", endDate);
-
-      const res = await fetch(`/api/orders?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(data.orders);
-        setPagination(data.pagination);
-      }
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-    } finally {
-      setLoading(false);
-    }
+    return `/api/orders?${params.toString()}`;
   }, [page, selectedLocation, selectedStatus, selectedDateRange]);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  const { data, isLoading, isValidating } = useSWR<PaginatedResponse>(swrKey, {
+    keepPreviousData: true,
+    revalidateOnFocus: false,
+    dedupingInterval: 5000,
+  });
+
+  const orders = data?.orders ?? [];
+  const pagination = data?.pagination ?? null;
 
   // Reset page to 1 when filters change
   const handleLocationChange = (loc: string) => {
@@ -133,7 +126,7 @@ export default function AdminOrdersPage() {
       )
     : orders;
 
-  if (loading && orders.length === 0) {
+  if (isLoading && !data) {
     return <AdminOrdersSkeleton />;
   }
 
@@ -225,7 +218,7 @@ export default function AdminOrdersPage() {
         />
 
         {/* Orders Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${isValidating ? "opacity-80" : ""}`}>
           {displayedOrders.length === 0 ? (
             <div className="col-span-full text-center py-12">
               <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -254,7 +247,7 @@ export default function AdminOrdersPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || loading}
+                disabled={page <= 1 || isValidating}
               >
                 <ChevronLeft className="h-4 w-4 mr-1" />
                 Previous
@@ -263,7 +256,7 @@ export default function AdminOrdersPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setPage((p) => p + 1)}
-                disabled={!pagination.hasMore || loading}
+                disabled={!pagination.hasMore || isValidating}
               >
                 Next
                 <ChevronRight className="h-4 w-4 ml-1" />

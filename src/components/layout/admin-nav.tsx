@@ -20,6 +20,7 @@ import {
   UtensilsCrossed
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useRouter as useNextRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 
@@ -48,12 +49,19 @@ const navItems: NavItem[] = [
 
 export function AdminNav({ user }: AdminNavProps) {
   const pathname = usePathname();
+  const router = useNextRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
+
+  // Prefetch top routes on mount
+  useEffect(() => {
+    router.prefetch("/admin/orders");
+    router.prefetch("/admin/products");
+  }, [router]);
 
   // Prevent body scroll when mobile menu is open
   useEffect(() => {

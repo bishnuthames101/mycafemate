@@ -13,7 +13,8 @@ import {
   LogOut,
   Menu
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter as useNextRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface StaffNavProps {
@@ -28,7 +29,14 @@ const navItems = [
 
 export function StaffNav({ user }: StaffNavProps) {
   const pathname = usePathname();
+  const router = useNextRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Prefetch top routes on mount
+  useEffect(() => {
+    router.prefetch("/staff/orders");
+    router.prefetch("/staff/orders/new");
+  }, [router]);
 
   return (
     <nav className="bg-white border-b border-coffee-200 sticky top-0 z-50 shadow-sm">

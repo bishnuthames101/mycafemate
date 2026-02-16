@@ -31,8 +31,25 @@
   * {
     @apply border-border;
   }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
   body {
     @apply bg-cream-50 text-foreground;
+  }
+
+  /* Remove 300ms tap delay on mobile */
+  button,
+  a,
+  [role="button"],
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Prevent iOS auto-zoom on input focus - inputs must be 16px+ */
@@ -48,6 +65,32 @@
     textarea,
     select {
       font-size: 16px !important;
+    }
+  }
+}
+
+/* Tactile feedback on interactive elements */
+@layer components {
+  /* Active-state press effect for cards and buttons */
+  @media (prefers-reduced-motion: no-preference) {
+    .active\:scale-press:active {
+      transform: scale(0.97);
+    }
+
+    /* Page enter animation */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-page-enter {
+      animation: fadeInUp 200ms ease-out;
     }
   }
 }

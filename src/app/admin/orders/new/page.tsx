@@ -18,12 +18,12 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useProducts } from "@/lib/hooks/use-products";
 
 export default function AdminNewOrderPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [locations, setLocations] = useState<Location[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [staffUsers, setStaffUsers] = useState<User[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>("");
@@ -33,9 +33,10 @@ export default function AdminNewOrderPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [includeTax, setIncludeTax] = useState(true);
 
+  const { products } = useProducts({ isAvailable: true });
+
   useEffect(() => {
     fetchLocations();
-    fetchProducts();
   }, []);
 
   useEffect(() => {
@@ -55,14 +56,6 @@ export default function AdminNewOrderPage() {
     if (res.ok) {
       const data = await res.json();
       setLocations(data);
-    }
-  };
-
-  const fetchProducts = async () => {
-    const res = await fetch("/api/products?isAvailable=true");
-    if (res.ok) {
-      const data = await res.json();
-      setProducts(data);
     }
   };
 

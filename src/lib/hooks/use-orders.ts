@@ -1,6 +1,7 @@
 import useSWR from "swr";
 import useSWRInfinite from "swr/infinite";
 import { Order, OrderItem, Product, Table, User, OrderStatus } from "@prisma/client";
+import { usePageVisibility } from "./use-visibility";
 
 export interface OrderWithRelations extends Order {
   items: (OrderItem & { product: Product })[];
@@ -27,6 +28,7 @@ interface UseOrdersOptions {
 
 export function useOrders(options: UseOrdersOptions = {}) {
   const { locationId, status, refreshInterval } = options;
+  const isVisible = usePageVisibility();
 
   const params = new URLSearchParams();
   if (locationId) {
@@ -42,9 +44,12 @@ export function useOrders(options: UseOrdersOptions = {}) {
   const { data, error, isLoading, isValidating, mutate } = useSWR<OrderWithRelations[]>(
     url,
     {
-      refreshInterval,
+      refreshInterval: isVisible ? refreshInterval : 0,
       revalidateOnFocus: false,
       dedupingInterval: 5000, // 5 seconds deduplication for orders
+      onSuccess: () => {
+        // When tab becomes visible and we had polling paused, SWR auto-revalidates
+      },
     }
   );
 
@@ -144,7 +149,7 @@ export function useOrdersInfinite(options: UseOrdersOptions & { limit?: number }
 }
 
 // Hook for kitchen orders with polling
-export function useKitchenOrders(locationId?: string, pollingInterval = 7000) {
+export function useKitchenOrders(locationId?: string, pollingInterval = 10000) {
   return useOrders({
     locationId,
     status: "PENDING,READY,SERVED",
@@ -153,7 +158,7 @@ export function useKitchenOrders(locationId?: string, pollingInterval = 7000) {
 }
 
 // Hook for staff orders with polling
-export function useStaffOrders(locationId?: string, pollingInterval = 3000) {
+export function useStaffOrders(locationId?: string, pollingInterval = 5000) {
   return useOrders({
     locationId,
     status: "PENDING,PREPARING,READY,SERVED",

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Product, Table } from "@prisma/client";
+import { Product } from "@prisma/client";
 import { ProductGrid } from "@/components/products/product-grid";
 import { OrderSummary } from "@/components/orders/order-summary";
 import { Button } from "@/components/ui/button";
@@ -17,78 +17,21 @@ import {
 } from "@/components/ui/select";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import {
-  getCached,
-  setCache,
-  CACHE_KEYS,
-  CACHE_TTL,
-  locationCacheKey,
-} from "@/lib/utils/cache";
+import { useProducts } from "@/lib/hooks/use-products";
+import { useAvailableTables } from "@/lib/hooks/use-tables";
 
 export default function NewOrderPage() {
   const { data: session } = useSession();
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [tables, setTables] = useState<Table[]>([]);
+  const locationId = session?.user?.locationId;
+
+  const { products } = useProducts({ isAvailable: true });
+  const { tables } = useAvailableTables(locationId);
+
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [cart, setCart] = useState<Record<string, number>>({});
   const [includeTax, setIncludeTax] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    // Load from cache first for instant display
-    const cachedProducts = getCached<Product[]>(CACHE_KEYS.PRODUCTS);
-    if (cachedProducts) {
-      setProducts(cachedProducts);
-    }
-    // Fetch fresh data in background
-    fetchProducts();
-  }, []);
-
-  useEffect(() => {
-    if (session?.user?.locationId) {
-      const locationId = session.user.locationId;
-      // Load from cache first for instant display
-      const cachedTables = getCached<Table[]>(locationCacheKey(CACHE_KEYS.TABLES, locationId));
-      if (cachedTables) {
-        setTables(cachedTables.filter((t: Table) => t.status === "AVAILABLE"));
-      }
-      // Fetch fresh data in background
-      fetchTables();
-    }
-  }, [session?.user?.locationId]);
-
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch("/api/products?isAvailable=true");
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data);
-        // Cache for future visits
-        setCache(CACHE_KEYS.PRODUCTS, data, CACHE_TTL.PRODUCTS);
-      }
-    } catch (error) {
-      console.error("Failed to fetch products:", error);
-    }
-  };
-
-  const fetchTables = async () => {
-    const locationId = session?.user.locationId;
-    if (!locationId) return;
-
-    try {
-      const res = await fetch(`/api/tables?locationId=${locationId}`);
-      if (res.ok) {
-        const data = await res.json();
-        const availableTables = data.filter((t: Table) => t.status === "AVAILABLE");
-        setTables(availableTables);
-        // Cache for future visits
-        setCache(locationCacheKey(CACHE_KEYS.TABLES, locationId), data, CACHE_TTL.TABLES);
-      }
-    } catch (error) {
-      console.error("Failed to fetch tables:", error);
-    }
-  };
 
   const handleAddToCart = (product: Product) => {
     setCart((prev) => ({
