@@ -67,7 +67,7 @@ export default function Home() {
         "description": "Leading cafe and restaurant management software provider in Nepal",
         "contactPoint": {
           "@type": "ContactPoint",
-          "telephone": "+977-980-0000000",
+          "telephone": "+977-9810323270",
           "contactType": "Customer Service",
           "areaServed": "NP",
           "availableLanguage": "en"
@@ -196,7 +196,7 @@ export default function Home() {
         </p>
         <div className="flex flex-col sm:flex-row justify-center gap-3 md:gap-4 px-4">
           <a
-            href="mailto:info@mymycafemate.com?subject=Free%20Trial%20Request%20for%20My-CafeMate&body=Hello%2C%0D%0A%0D%0AI%20would%20like%20to%20request%20a%2014-day%20free%20trial%20for%20My-CafeMate.%0D%0A%0D%0ABusiness%20Name%3A%20%0D%0AContact%20Person%3A%20%0D%0APhone%3A%20%0D%0AEmail%3A%20%0D%0ALocation%3A%20%0D%0A%0D%0AThank%20you!"
+            href="#contact"
             className="bg-gradient-to-r from-amber-700 to-amber-800 text-white px-6 py-3 md:px-8 md:py-4 rounded-lg text-base md:text-lg font-semibold hover:from-amber-800 hover:to-amber-900 transition shadow-lg"
           >
             Start Free Trial
@@ -356,10 +356,10 @@ export default function Home() {
               </div>
 
               <a
-                href="mailto:info@mymycafemate.com?subject=Free%20Trial%20Request%20for%20My-CafeMate&body=Hello%2C%0D%0A%0D%0AI%20would%20like%20to%20request%20a%2014-day%20free%20trial%20for%20My-CafeMate.%0D%0A%0D%0ABusiness%20Name%3A%20%0D%0AContact%20Person%3A%20%0D%0APhone%3A%20%0D%0AEmail%3A%20%0D%0ALocation%3A%20%0D%0A%0D%0AThank%20you!"
+                href="#contact"
                 className="block text-center py-4 rounded-lg font-semibold transition bg-gradient-to-r from-amber-700 to-amber-800 text-white hover:from-amber-800 hover:to-amber-900 shadow-md"
               >
-                Start Free Trial
+                Get Started — Contact Us
               </a>
             </div>
           </div>
@@ -413,13 +413,13 @@ export default function Home() {
                   <ContactItem
                     icon="📞"
                     label="Phone"
-                    value="+977 980-0000000"
-                    link="tel:+9779800000000"
+                    value="+977 9810323270"
+                    link="tel:+9779810323270"
                   />
                   <ContactItem
                     icon="📍"
                     label="Location"
-                    value="Kathmandu, Nepal"
+                    value="Balkumari-Kharibot, Lalitpur"
                   />
                   <ContactItem
                     icon="⏰"
@@ -433,7 +433,7 @@ export default function Home() {
               <div className="bg-gradient-to-br from-amber-700 to-amber-900 p-8 rounded-xl text-white shadow-xl">
                 <h3 className="text-2xl font-bold mb-4">Start Your Free Trial</h3>
                 <p className="mb-6 opacity-90">
-                  No credit card required. Get started in minutes. Cancel anytime.
+                  Interested in My-CafeMate? Simply call or email us — we'll set everything up for you.
                 </p>
                 <ul className="space-y-3 mb-8">
                   <li className="flex items-center">
@@ -453,12 +453,20 @@ export default function Home() {
                     No technical knowledge required
                   </li>
                 </ul>
-                <a
-                  href="mailto:info@mymycafemate.com?subject=Free%20Trial%20Request%20for%20My-CafeMate&body=Hello%2C%0D%0A%0D%0AI%20would%20like%20to%20request%20a%2014-day%20free%20trial%20for%20My-CafeMate.%0D%0A%0D%0ABusiness%20Name%3A%20%0D%0AContact%20Person%3A%20%0D%0APhone%3A%20%0D%0AEmail%3A%20%0D%0ALocation%3A%20%0D%0A%0D%0AThank%20you!"
-                  className="block text-center bg-white text-amber-900 py-3 rounded-lg font-bold hover:bg-amber-50 transition"
-                >
-                  Request Free Trial →
-                </a>
+                <div className="space-y-3">
+                  <a
+                    href="tel:+9779810323270"
+                    className="flex items-center justify-center gap-2 bg-white text-amber-900 py-3 rounded-lg font-bold hover:bg-amber-50 transition"
+                  >
+                    📞 Call Us: +977 9810323270
+                  </a>
+                  <a
+                    href="mailto:info@mymycafemate.com"
+                    className="flex items-center justify-center gap-2 bg-amber-600 text-white py-3 rounded-lg font-bold hover:bg-amber-500 transition border border-amber-400"
+                  >
+                    📧 Email Us for Trial
+                  </a>
+                </div>
               </div>
             </div>
           </div>
