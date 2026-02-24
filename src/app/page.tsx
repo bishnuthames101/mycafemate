@@ -8,9 +8,11 @@ export default function Home() {
   const host = headersList.get("host") || "";
   const hostWithoutPort = host.split(":")[0];
 
-  // Check if accessing from a subdomain
-  const isSubdomain = hostWithoutPort.includes(".");
+  // Check if accessing from a subdomain (must have more than one dot segment, e.g. tenant.mycafemate.com)
+  const baseDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "mycafemate.com";
+  const isRootDomain = hostWithoutPort === baseDomain || hostWithoutPort === `www.${baseDomain}`;
   const isLocalhost = hostWithoutPort === "localhost" || hostWithoutPort.startsWith("localhost:");
+  const isSubdomain = !isRootDomain && !isLocalhost && hostWithoutPort.endsWith(`.${baseDomain}`);
 
   // If accessing admin subdomain, redirect to super admin
   if (hostWithoutPort.startsWith("admin.")) {
