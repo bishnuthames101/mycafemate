@@ -189,8 +189,8 @@ export async function POST(
       }
     };
 
-    // Run deduction and notifications in parallel
-    await Promise.all([
+    // Fire-and-forget: deduct inventory and check low stock
+    Promise.all([
       deductInventory(),
       createLowStockNotifications(prisma, order.locationId).catch((err) =>
         logger.error(
@@ -198,7 +198,7 @@ export async function POST(
           err instanceof Error ? err : undefined
         )
       ),
-    ]);
+    ]).catch(err => logger.error("Post-add-items background ops failed", err instanceof Error ? err : undefined));
 
     return NextResponse.json(updatedOrder);
   } catch (error: any) {

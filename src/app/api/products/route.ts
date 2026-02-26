@@ -95,13 +95,17 @@ export async function POST(request: NextRequest) {
         if (!recipe.quantityUsed || typeof recipe.quantityUsed !== "number" || recipe.quantityUsed <= 0) {
           throw new Error("Each recipe item must have a quantityUsed greater than 0");
         }
+      }
 
-        // Verify inventory exists
-        const inventory = await prisma.inventory.findUnique({
-          where: { id: recipe.inventoryId },
-          select: { id: true },
-        });
-        if (!inventory) {
+      // Verify all inventories exist in a single query (N→1)
+      const inventoryIds = recipes.map((r: any) => r.inventoryId);
+      const foundInventories = await prisma.inventory.findMany({
+        where: { id: { in: inventoryIds } },
+        select: { id: true },
+      });
+      const foundIds = new Set(foundInventories.map((i: any) => i.id));
+      for (const recipe of recipes) {
+        if (!foundIds.has(recipe.inventoryId)) {
           throw new Error(`Inventory '${recipe.inventoryId}' not found`);
         }
       }

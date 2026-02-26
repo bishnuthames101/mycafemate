@@ -344,25 +344,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Deduct inventory (best-effort, don't fail order if this fails)
-    await deductInventoryForOrder(prisma, order.id);
-
-    // Check for low stock and create notifications
-    await createLowStockNotifications(prisma, validatedData.locationId);
-
-    // Create NEW_ORDER notification for kitchen staff
-    try {
-      await createNewOrderNotification(prisma, {
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        tableNumber: order.table?.number,
-        locationId: order.locationId,
-        totalAmount: order.total,
-      });
-    } catch (error) {
-      logger.error("Error creating new order notification", error instanceof Error ? error : undefined);
-      // Don't fail order creation if notification fails
-    }
+    // Fire-and-forget: deduct inventory, check low stock, notify kitchen
+    deductInventoryForOrder(prisma, order.id)
+      .catch(err => logger.error("Inventory deduction failed", err instanceof Error ? err : undefined));
+    createLowStockNotifications(prisma, validatedData.locationId)
+      .catch(err => logger.error("Low stock notifications failed", err instanceof Error ? err : undefined));
+    createNewOrderNotification(prisma, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      tableNumber: order.table?.number,
+      locationId: order.locationId,
+      totalAmount: order.total,
+    }).catch(err => logger.error("New order notification failed", err instanceof Error ? err : undefined));
 
     return NextResponse.json(order, { status: 201 });
   } catch (error: any) {

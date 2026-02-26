@@ -27,6 +27,7 @@ export async function GET(
     const order = await prisma.order.findUnique({
       where: { id: params.id },
       include: {
+        location: { select: { name: true, address: true, phone: true } },
         items: {
           include: {
             product: true,
@@ -160,6 +161,7 @@ export async function PATCH(
         completedAt: status === "COMPLETED" ? new Date() : null,
       },
       include: {
+        location: { select: { name: true, address: true, phone: true } },
         items: {
           include: {
             product: true,
@@ -200,14 +202,10 @@ export async function PATCH(
       });
     }
 
-    // If completed, trigger daily sales aggregation
+    // If completed, trigger daily sales aggregation (fire-and-forget)
     if (status === "COMPLETED") {
-      try {
-        await upsertDailySales(new Date(), order.locationId, prisma);
-      } catch (error) {
-        logger.error("Error aggregating daily sales", error instanceof Error ? error : undefined);
-        // Don't fail the order update if aggregation fails
-      }
+      upsertDailySales(new Date(), order.locationId, prisma)
+        .catch(err => logger.error("Error aggregating daily sales", err instanceof Error ? err : undefined));
     }
 
     // If order is ready, create notification for staff

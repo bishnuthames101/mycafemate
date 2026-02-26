@@ -240,7 +240,12 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
           </div>
 
           {activeTab === "invoice" ? (
-            <OrderInvoice order={order} />
+            <OrderInvoice
+              order={order}
+              locationName={order.location?.name || undefined}
+              locationAddress={order.location?.address || undefined}
+              locationPhone={order.location?.phone || undefined}
+            />
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

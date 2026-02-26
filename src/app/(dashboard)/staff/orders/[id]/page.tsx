@@ -31,6 +31,7 @@ interface OrderWithRelations extends Order {
   items: (OrderItem & { product: Product })[];
   table: Table | null;
   staff: Pick<User, "name" | "email">;
+  location?: { name: string; address: string; phone: string | null } | null;
 }
 
 export default function OrderDetailPage({ params }: { params: { id: string } }) {
@@ -43,24 +44,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [showChangeTableDialog, setShowChangeTableDialog] = useState(false);
   const [showAddItemsDialog, setShowAddItemsDialog] = useState(false);
   const [isRemovingItem, setIsRemovingItem] = useState<string | null>(null);
-  const [businessName, setBusinessName] = useState<string>("");
 
   useEffect(() => {
     fetchOrder();
-    fetchTenantConfig();
   }, [params.id]);
-
-  const fetchTenantConfig = async () => {
-    try {
-      const res = await fetch("/api/tenant/config");
-      if (res.ok) {
-        const data = await res.json();
-        setBusinessName(data.businessName || "");
-      }
-    } catch (error) {
-      console.error("Error fetching tenant config:", error);
-    }
-  };
 
   const fetchOrder = async () => {
     try {
@@ -215,7 +202,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         </div>
 
         {activeTab === "invoice" ? (
-          <OrderInvoice order={order} locationName={businessName || undefined} />
+          <OrderInvoice
+            order={order}
+            locationName={order.location?.name || undefined}
+            locationAddress={order.location?.address || undefined}
+            locationPhone={order.location?.phone || undefined}
+          />
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
