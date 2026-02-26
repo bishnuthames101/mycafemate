@@ -104,25 +104,6 @@ export async function PATCH(
     const body = await request.json();
     const { status } = updateOrderStatusSchema.parse(body);
 
-    // STAFF location restriction - can only update orders at their location
-    if (session.user.role === "STAFF") {
-      const existingOrder = await prisma.order.findUnique({
-        where: { id: params.id },
-        select: { locationId: true },
-      });
-
-      if (!existingOrder) {
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
-      }
-
-      if (existingOrder.locationId !== session.user.locationId) {
-        return NextResponse.json(
-          { error: "Unauthorized - order from different location" },
-          { status: 403 }
-        );
-      }
-    }
-
     // KITCHEN_STAFF restrictions
     if (session.user.role === "KITCHEN_STAFF") {
       // Can update to READY or SERVED status
@@ -166,7 +147,14 @@ export async function PATCH(
     }
 
     const order = await prisma.order.update({
-      where: { id: params.id },
+      where: {
+        id: params.id,
+        // STAFF may only update orders at their assigned location;
+        // P2025 (not found) is caught below and returned as 404
+        ...(session.user.role === "STAFF"
+          ? { locationId: session.user.locationId ?? "" }
+          : {}),
+      },
       data: {
         status,
         completedAt: status === "COMPLETED" ? new Date() : null,

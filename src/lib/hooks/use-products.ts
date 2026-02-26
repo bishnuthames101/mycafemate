@@ -19,28 +19,14 @@ export function useProducts(options: UseProductsOptions = {}) {
   const queryString = params.toString();
   const url = `/api/products${queryString ? `?${queryString}` : ""}`;
 
+  // Provide cached data as fallback for instant render (unfiltered only)
+  const cachedProducts = !options.category
+    ? getCached<Product[]>(CACHE_KEYS.PRODUCTS)
+    : null;
+
   const { data, error, isLoading, isValidating, mutate } = useSWR<Product[]>(
     url,
     async (url: string) => {
-      // Try cache first for instant display
-      const cached = getCached<Product[]>(CACHE_KEYS.PRODUCTS);
-      if (cached && !options.category) {
-        // Return cached immediately, but still fetch fresh
-        setTimeout(async () => {
-          try {
-            const res = await fetch(url);
-            if (res.ok) {
-              const fresh = await res.json();
-              setCache(CACHE_KEYS.PRODUCTS, fresh, CACHE_TTL.PRODUCTS);
-              mutate(fresh, false);
-            }
-          } catch {
-            // Ignore background fetch errors
-          }
-        }, 0);
-        return cached;
-      }
-
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch products");
       const products = await res.json();
@@ -53,6 +39,8 @@ export function useProducts(options: UseProductsOptions = {}) {
       return products;
     },
     {
+      fallbackData: cachedProducts ?? undefined,
+      revalidateIfStale: true,
       revalidateOnFocus: false,
       dedupingInterval: 60000, // 1 minute deduplication
     }

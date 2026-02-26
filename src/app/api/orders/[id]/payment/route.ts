@@ -235,7 +235,16 @@ async function handleSplitPayment(
             currentBalance: true,
           },
         },
-        payments: true,
+        payments: {
+          include: {
+            creditor: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     })
   );
@@ -269,49 +278,12 @@ async function handleSplitPayment(
     );
   }
 
-  // Execute transaction
+  // Execute transaction — results[0] is the updated order with all includes
   const results = await prisma.$transaction(operations);
-  const updatedOrder = results[0];
-
-  // Fetch full order with payments for response
-  const orderWithPayments = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: {
-      items: {
-        include: {
-          product: true,
-        },
-      },
-      table: true,
-      staff: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-      creditor: {
-        select: {
-          id: true,
-          name: true,
-          currentBalance: true,
-        },
-      },
-      payments: {
-        include: {
-          creditor: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-    },
-  });
 
   // Revalidate relevant paths
   revalidatePath("/staff/orders");
   revalidatePath(`/staff/orders/${orderId}`);
 
-  return NextResponse.json(orderWithPayments);
+  return NextResponse.json(results[0]);
 }

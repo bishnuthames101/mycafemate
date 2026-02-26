@@ -18,56 +18,24 @@ export interface CategoryOption {
 }
 
 export function useCategories() {
+  // Provide cached categories as fallback for instant render
+  const cachedCategories = getCached<Category[]>(CACHE_KEYS.CATEGORIES);
+
   const { data, error, isLoading, isValidating, mutate } = useSWR<Category[]>(
     "/api/categories",
     async (url: string) => {
-      // Try cache first for instant display
-      const cachedOptions = getCached<CategoryOption[]>(CACHE_KEYS.CATEGORIES);
-      if (cachedOptions) {
-        // Return cached data structure, but still fetch fresh in background
-        setTimeout(async () => {
-          try {
-            const res = await fetch(url);
-            if (res.ok) {
-              const fresh = await res.json();
-              const options = [
-                { value: "ALL", label: "All" },
-                ...fresh.map((c: Category) => ({ value: c.slug, label: c.name })),
-              ];
-              setCache(CACHE_KEYS.CATEGORIES, options, CACHE_TTL.CATEGORIES);
-              mutate(fresh, false);
-            }
-          } catch {
-            // Ignore background fetch errors
-          }
-        }, 0);
-        // Convert cached options back to categories (approximate)
-        return cachedOptions
-          .filter((o) => o.value !== "ALL")
-          .map((o) => ({
-            id: o.value,
-            name: o.label,
-            slug: o.value,
-            description: null,
-            createdAt: "",
-            updatedAt: "",
-          }));
-      }
-
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch categories");
       const categories = await res.json();
 
-      // Cache as options for faster future access
-      const options = [
-        { value: "ALL", label: "All" },
-        ...categories.map((c: Category) => ({ value: c.slug, label: c.name })),
-      ];
-      setCache(CACHE_KEYS.CATEGORIES, options, CACHE_TTL.CATEGORIES);
+      // Cache raw Category[] for future visits
+      setCache(CACHE_KEYS.CATEGORIES, categories, CACHE_TTL.CATEGORIES);
 
       return categories;
     },
     {
+      fallbackData: cachedCategories ?? undefined,
+      revalidateIfStale: true,
       revalidateOnFocus: false,
       dedupingInterval: 300000, // 5 minutes deduplication
     }

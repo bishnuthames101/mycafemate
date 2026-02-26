@@ -22,30 +22,12 @@ export function useTables(options: UseTablesOptions = {}) {
   const url = locationId ? `/api/tables${queryString ? `?${queryString}` : ""}` : null;
   const cacheKey = locationId ? locationCacheKey(CACHE_KEYS.TABLES, locationId) : null;
 
+  // Provide cached data as fallback for instant render
+  const cachedTables = cacheKey ? getCached<Table[]>(cacheKey) : null;
+
   const { data, error, isLoading, isValidating, mutate } = useSWR<Table[]>(
     url,
     async (url: string) => {
-      // Try cache first for instant display
-      if (cacheKey) {
-        const cached = getCached<Table[]>(cacheKey);
-        if (cached) {
-          // Return cached immediately, but still fetch fresh
-          setTimeout(async () => {
-            try {
-              const res = await fetch(url);
-              if (res.ok) {
-                const fresh = await res.json();
-                setCache(cacheKey, fresh, CACHE_TTL.TABLES);
-                mutate(fresh, false);
-              }
-            } catch {
-              // Ignore background fetch errors
-            }
-          }, 0);
-          return cached;
-        }
-      }
-
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch tables");
       const tables = await res.json();
@@ -58,6 +40,8 @@ export function useTables(options: UseTablesOptions = {}) {
       return tables;
     },
     {
+      fallbackData: cachedTables ?? undefined,
+      revalidateIfStale: true,
       revalidateOnFocus: false,
       dedupingInterval: 30000, // 30 seconds deduplication
     }

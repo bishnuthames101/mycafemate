@@ -1,5 +1,5 @@
 import { NotificationType } from "@prisma/client";
-import { createLowStockNotification } from "@/lib/services/notification-service";
+import { createBulkNotifications } from "@/lib/services/notification-service";
 import type { PrismaClient } from "@prisma/client";
 import { logger } from '@/lib/utils/logger';
 
@@ -131,33 +131,37 @@ export async function createLowStockNotifications(
       AND ii."currentStock" <= ii."minimumStock"
     `;
 
-    let notificationsCreated = 0;
-    const alertUpdateOps = [];
-
-    for (const item of lowStockItems) {
+    // Build all notification inputs and batch them in a single DB call
+    const notificationInputs = lowStockItems.map((item) => {
       const isOutOfStock = item.currentStock <= 0;
-
-      // Use notification service to create notification (sequential - crosses service boundary)
-      await createLowStockNotification(prisma, {
+      return {
+        type: (isOutOfStock ? "OUT_OF_STOCK" : "LOW_STOCK") as any,
+        title: isOutOfStock ? "Out of Stock" : "Low Stock Alert",
+        message: `${item.inventoryName} is ${isOutOfStock ? "out of stock" : "running low"}. Current: ${item.currentStock}${item.unit}, Minimum: ${item.minimumStock}${item.unit}`,
         locationId,
-        inventoryItemId: item.id,
-        inventoryName: item.inventoryName,
-        currentStock: item.currentStock,
-        minimumStock: item.minimumStock,
-        unit: item.unit,
-        isOutOfStock,
-      });
+        priority: (isOutOfStock ? "HIGH" : "NORMAL") as any,
+        metadata: {
+          inventoryItemId: item.id,
+          inventoryName: item.inventoryName,
+          currentStock: item.currentStock,
+          minimumStock: item.minimumStock,
+          unit: item.unit,
+        },
+      };
+    });
 
-      // Collect alert updates for batch execution
-      alertUpdateOps.push(
-        prisma.inventoryItem.update({
-          where: { id: item.id },
-          data: { lowStockAlerted: true },
-        })
-      );
-
-      notificationsCreated++;
+    if (notificationInputs.length > 0) {
+      await createBulkNotifications(prisma, notificationInputs);
     }
+
+    const alertUpdateOps = lowStockItems.map((item) =>
+      prisma.inventoryItem.update({
+        where: { id: item.id },
+        data: { lowStockAlerted: true },
+      })
+    );
+
+    const notificationsCreated = lowStockItems.length;
 
     // Batch all alert flag updates in a single transaction
     if (alertUpdateOps.length > 0) {
