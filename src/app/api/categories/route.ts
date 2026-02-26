@@ -25,9 +25,7 @@ export async function GET() {
       orderBy: { sortOrder: "asc" },
     });
 
-    const response = NextResponse.json(categories);
-    response.headers.set("Cache-Control", "private, max-age=300");
-    return response;
+    return NextResponse.json(categories);
   } catch (error) {
     logger.error("Error fetching categories", error instanceof Error ? error : undefined);
     return NextResponse.json(
