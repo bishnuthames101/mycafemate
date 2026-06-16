@@ -31,7 +31,8 @@ export default function AdminNewOrderPage() {
   const [selectedStaff, setSelectedStaff] = useState<string>("");
   const [cart, setCart] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [includeTax, setIncludeTax] = useState(true);
+  const [includeTax, setIncludeTax] = useState(false);
+  const [discount, setDiscount] = useState(0);
 
   const { products } = useProducts({ isAvailable: true });
 
@@ -56,6 +57,10 @@ export default function AdminNewOrderPage() {
     if (res.ok) {
       const data = await res.json();
       setLocations(data);
+      // Auto-select if only one location (most tenants)
+      if (data.length === 1) {
+        setSelectedLocation(data[0].id);
+      }
     }
   };
 
@@ -68,6 +73,10 @@ export default function AdminNewOrderPage() {
   };
 
   const fetchStaff = async (locationId: string) => {
+    // Auto-select current admin user
+    if (session?.user?.id) {
+      setSelectedStaff(session.user.id);
+    }
     // Fetch users with role STAFF for selected location
     const res = await fetch(`/api/admin/users?role=STAFF&locationId=${locationId}`);
     if (res.ok) {
@@ -75,11 +84,7 @@ export default function AdminNewOrderPage() {
       // API returns { users: [...] } wrapper
       setStaffUsers(Array.isArray(data) ? data : data.users || []);
     } else {
-      // If endpoint doesn't exist, use current admin as fallback
       setStaffUsers([]);
-      if (session?.user) {
-        setSelectedStaff(session.user.id);
-      }
     }
   };
 
@@ -153,6 +158,7 @@ export default function AdminNewOrderPage() {
           staffId,
           items,
           includeTax,
+          discount,
         }),
       });
 
@@ -201,33 +207,35 @@ export default function AdminNewOrderPage() {
           <div>
             <h1 className="text-3xl font-bold text-coffee-700">New Order</h1>
             <p className="text-coffee-600 mt-1">
-              Select location, table, and add items to create an order
+              Select a table and add items to create an order
             </p>
           </div>
         </div>
 
-        {/* Location, Staff, and Table Selection */}
+        {/* Location, Table, and Staff Selection */}
         <Card>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Location Selection */}
-              <div>
-                <Label htmlFor="location" className="text-base font-semibold mb-2 block">
-                  Select Location
-                </Label>
-                <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                  <SelectTrigger id="location">
-                    <SelectValue placeholder="Choose a location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className={`grid grid-cols-1 gap-4 ${locations.length > 1 ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+              {/* Location Selection - only show when multiple locations */}
+              {locations.length > 1 && (
+                <div>
+                  <Label htmlFor="location" className="text-base font-semibold mb-2 block">
+                    Select Location
+                  </Label>
+                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                    <SelectTrigger id="location">
+                      <SelectValue placeholder="Choose a location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((location) => (
+                        <SelectItem key={location.id} value={location.id}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {/* Table Selection */}
               <div>
@@ -237,10 +245,9 @@ export default function AdminNewOrderPage() {
                 <Select
                   value={selectedTable}
                   onValueChange={setSelectedTable}
-                  disabled={!selectedLocation}
                 >
                   <SelectTrigger id="table">
-                    <SelectValue placeholder={!selectedLocation ? "Select location first" : "Choose a table"} />
+                    <SelectValue placeholder="Choose a table" />
                   </SelectTrigger>
                   <SelectContent>
                     {tables.length === 0 ? (
@@ -264,10 +271,9 @@ export default function AdminNewOrderPage() {
                 <Select
                   value={selectedStaff}
                   onValueChange={setSelectedStaff}
-                  disabled={!selectedLocation}
                 >
                   <SelectTrigger id="staff">
-                    <SelectValue placeholder={!selectedLocation ? "Select location first" : "Choose staff member"} />
+                    <SelectValue placeholder="Choose staff member" />
                   </SelectTrigger>
                   <SelectContent>
                     {staffUsers.length === 0 ? (
@@ -289,36 +295,28 @@ export default function AdminNewOrderPage() {
         </Card>
 
         {/* Product Grid and Order Summary */}
-        {selectedLocation && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <ProductGrid
-                products={products}
-                cart={cart}
-                onAddToCart={handleAddToCart}
-                onRemoveFromCart={handleRemoveFromCart}
-              />
-            </div>
-            <div>
-              <OrderSummary
-                items={cartItems}
-                onRemoveItem={handleRemoveItem}
-                onSubmit={handleSubmit}
-                isLoading={isLoading}
-                includeTax={includeTax}
-                onIncludeTaxChange={setIncludeTax}
-              />
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <ProductGrid
+              products={products}
+              cart={cart}
+              onAddToCart={handleAddToCart}
+              onRemoveFromCart={handleRemoveFromCart}
+            />
           </div>
-        )}
-
-        {!selectedLocation && (
-          <Card>
-            <CardContent className="pt-6 text-center text-muted-foreground">
-              <p>Please select a location to continue</p>
-            </CardContent>
-          </Card>
-        )}
+          <div>
+            <OrderSummary
+              items={cartItems}
+              onRemoveItem={handleRemoveItem}
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              includeTax={includeTax}
+              onIncludeTaxChange={setIncludeTax}
+              discount={discount}
+              onDiscountChange={setDiscount}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

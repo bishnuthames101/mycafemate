@@ -29,7 +29,8 @@ export const createOrderSchema = z.object({
     .min(1, "At least one item is required")
     .max(50, "Order cannot exceed 50 items"),
   notes: z.string().max(1000, "Order notes must not exceed 1000 characters").optional(),
-  includeTax: z.boolean().optional().default(true),
+  includeTax: z.boolean().optional().default(false),
+  discount: z.number().min(0, "Discount cannot be negative").optional().default(0),
 });
 
 export const updateOrderStatusSchema = z.object({

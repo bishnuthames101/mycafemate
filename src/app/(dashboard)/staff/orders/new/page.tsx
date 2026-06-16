@@ -30,7 +30,8 @@ export default function NewOrderPage() {
 
   const [selectedTable, setSelectedTable] = useState<string>("");
   const [cart, setCart] = useState<Record<string, number>>({});
-  const [includeTax, setIncludeTax] = useState(true);
+  const [includeTax, setIncludeTax] = useState(false);
+  const [discount, setDiscount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleAddToCart = (product: Product) => {
@@ -88,6 +89,7 @@ export default function NewOrderPage() {
           staffId: session?.user.id,
           items,
           includeTax,
+          discount,
         }),
       });
 
@@ -178,6 +180,8 @@ export default function NewOrderPage() {
               isLoading={isLoading}
               includeTax={includeTax}
               onIncludeTaxChange={setIncludeTax}
+              discount={discount}
+              onDiscountChange={setDiscount}
             />
           </div>
         </div>

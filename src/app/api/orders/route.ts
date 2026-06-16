@@ -255,7 +255,8 @@ export async function POST(request: NextRequest) {
       0
     );
     const tax = calculateTax(subtotal, validatedData.includeTax);
-    const total = subtotal + tax;
+    const discount = Math.max(0, Math.min(validatedData.discount || 0, subtotal + tax));
+    const total = subtotal + tax - discount;
 
     // Generate order number and create order with retry for race condition handling
     // If two requests get the same count, P2002 (unique constraint) triggers retry
@@ -285,6 +286,7 @@ export async function POST(request: NextRequest) {
             staffId: validatedData.staffId,
             subtotal,
             tax,
+            discount,
             total,
             notes: validatedData.notes,
             items: {

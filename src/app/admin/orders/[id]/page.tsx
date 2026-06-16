@@ -38,9 +38,14 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
   const [showChangeTableDialog, setShowChangeTableDialog] = useState(false);
   const [showAddItemsDialog, setShowAddItemsDialog] = useState(false);
   const [isRemovingItem, setIsRemovingItem] = useState<string | null>(null);
+  const [businessName, setBusinessName] = useState<string | undefined>();
 
   useEffect(() => {
     fetchOrder();
+    fetch("/api/tenant/config")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.businessName) setBusinessName(data.businessName); })
+      .catch(() => {});
   }, [params.id]);
 
   const fetchOrder = async () => {
@@ -242,7 +247,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
           {activeTab === "invoice" ? (
             <OrderInvoice
               order={order}
-              locationName={order.location?.name || undefined}
+              locationName={businessName || order.location?.name || undefined}
               locationAddress={order.location?.address || undefined}
               locationPhone={order.location?.phone || undefined}
             />

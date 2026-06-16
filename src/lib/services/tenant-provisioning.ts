@@ -172,19 +172,18 @@ export async function provisionNewTenant(
 
     // ============= STEP 8: REGISTER VERCEL DOMAIN =============
     // Non-blocking: failure here does NOT fail tenant creation
-    if (process.env.NODE_ENV === "production") {
-      const domain =
-        process.env.SUPER_ADMIN_DOMAIN?.replace("admin.", "") ||
-        "mycafemate.com";
-      const tenantDomain = `${input.slug}.${domain}`;
+    // Runs in any environment — addDomainToVercel safely skips if token/projectId not configured
+    const domain =
+      process.env.SUPER_ADMIN_DOMAIN?.replace("admin.", "") ||
+      "mycafemate.com";
+    const tenantDomain = `${input.slug}.${domain}`;
 
-      log.info(`Registering Vercel domain: ${tenantDomain}`);
-      const domainAdded = await addDomainToVercel(tenantDomain);
-      if (!domainAdded) {
-        log.warn(
-          `Vercel domain registration failed for ${tenantDomain}. Add it manually in the Vercel dashboard.`
-        );
-      }
+    log.info(`Registering Vercel domain: ${tenantDomain}`);
+    const domainAdded = await addDomainToVercel(tenantDomain);
+    if (!domainAdded) {
+      log.warn(
+        `Vercel domain registration failed for ${tenantDomain}. Add it manually in the Vercel dashboard.`
+      );
     }
 
     log.info(`Tenant provisioned successfully: ${input.slug}`);
