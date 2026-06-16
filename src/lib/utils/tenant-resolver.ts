@@ -3,48 +3,41 @@ import { headers } from "next/headers";
 /**
  * Extract tenant slug from the current request
  *
- * Supports two methods:
- * 1. Subdomain routing: cafe-abc.mycafemate.com → "cafe-abc"
- * 2. Header-based: X-Tenant-Slug: cafe-abc → "cafe-abc" (for API clients)
+ * Uses subdomain routing only (cannot be spoofed by client):
+ *   cafe-abc.mycafemate.com → "cafe-abc"
+ *   cafe-abc.localhost:3000 → "cafe-abc"
  *
  * @returns Tenant slug or null if not found/in super admin context
  */
 export function getTenantSlug(): string | null {
   const headersList = headers();
 
-  // Method 1: Extract from subdomain (preferred - cannot be spoofed by client)
   const host = headersList.get("host");
-  if (host) {
-    const hostWithoutPort = host.split(":")[0];
+  if (!host) return null;
 
-    // Super admin dashboard: admin.mycafemate.com or admin.localhost
-    if (hostWithoutPort.startsWith("admin.")) {
-      return null; // No tenant context for super admin
-    }
+  const hostWithoutPort = host.split(":")[0];
 
-    // Development: tenant-slug.localhost
-    if (hostWithoutPort.includes(".localhost")) {
-      const parts = hostWithoutPort.split(".");
-      if (parts.length >= 2) {
-        return parts[0].toLowerCase();
-      }
-    }
+  // Super admin dashboard: admin.mycafemate.com or admin.localhost
+  if (hostWithoutPort.startsWith("admin.")) {
+    return null; // No tenant context for super admin
+  }
 
-    // Production: tenant-slug.mycafemate.com
+  // Development: tenant-slug.localhost
+  if (hostWithoutPort.includes(".localhost")) {
     const parts = hostWithoutPort.split(".");
-    if (parts.length >= 3) {
-      return parts[0].toLowerCase();
+    if (parts.length >= 2) {
+      const slug = parts[0].toLowerCase();
+      return isValidTenantSlug(slug) ? slug : null;
     }
   }
 
-  // Method 2: Fallback to custom header (for API clients, mobile apps, etc.)
-  // Only used when subdomain cannot be determined
-  const tenantHeader = headersList.get("x-tenant-slug");
-  if (tenantHeader) {
-    return tenantHeader.toLowerCase().trim();
+  // Production: tenant-slug.mycafemate.com
+  const parts = hostWithoutPort.split(".");
+  if (parts.length >= 3) {
+    const slug = parts[0].toLowerCase();
+    return isValidTenantSlug(slug) ? slug : null;
   }
 
-  // No subdomain or header found
   return null;
 }
 

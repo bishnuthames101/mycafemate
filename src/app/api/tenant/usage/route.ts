@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     logger.error("Error fetching tenant usage:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch usage" },
+      { error: "Failed to fetch usage" },
       { status: 500 }
     );
   }

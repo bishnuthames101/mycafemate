@@ -6,22 +6,6 @@ import bcrypt from "bcryptjs";
 import { logger } from '@/lib/utils/logger';
 
 /**
- * GET /api/admin/users/:userId/password
- * Test endpoint to verify route is working
- */
-export async function GET(
-  request: NextRequest,
-  context: { params: { userId: string } }
-) {
-  const { userId } = context.params;
-  return NextResponse.json({
-    message: "Password route is working",
-    userId,
-    method: "GET"
-  });
-}
-
-/**
  * PUT /api/admin/users/:userId/password
  * Change password for a user (admin only)
  */
@@ -111,7 +95,7 @@ export async function PUT(
   } catch (error: any) {
     logger.error("[Password Change] ERROR", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Failed to update password" },
+      { error: "Failed to update password" },
       { status: 500 }
     );
   }

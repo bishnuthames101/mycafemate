@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     logger.error("Error fetching usage alerts:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch alerts" },
+      { error: "Failed to fetch alerts" },
       { status: 500 }
     );
   }
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     logger.error("Error processing usage alert action:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Failed to process action" },
+      { error: "Failed to process action" },
       { status: 500 }
     );
   }

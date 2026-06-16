@@ -300,6 +300,10 @@ export async function deleteTenant(
     if (hardDelete) {
       // Hard delete: Drop database or schema permanently
       const multiTenancyMode = process.env.MULTI_TENANCY_MODE || 'DATABASE';
+      // Validate slug before using in raw SQL
+      if (!isValidTenantSlug(tenant.slug)) {
+        return { success: false, error: "Invalid tenant slug format" };
+      }
       const dbName = generateDatabaseName(tenant.slug);
       const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
 

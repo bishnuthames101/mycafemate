@@ -13,6 +13,18 @@ import { Client } from "pg";
 import { logger } from '@/lib/utils/logger';
 
 /**
+ * Validate and sanitize a PostgreSQL identifier (schema/database name).
+ * Prevents SQL injection when used in raw SQL statements.
+ * Only allows lowercase alphanumeric and underscores.
+ */
+function sanitizeIdentifier(name: string): string {
+  if (!/^[a-z0-9_]+$/.test(name) || name.length < 3 || name.length > 63) {
+    throw new Error(`Invalid database identifier: ${name}`);
+  }
+  return name;
+}
+
+/**
  * Create a new PostgreSQL database OR schema for a tenant
  *
  * Modes:
@@ -37,7 +49,7 @@ export async function createPostgresDatabase(tenantSlug: string): Promise<void> 
  */
 async function createPostgresDatabaseMode(tenantSlug: string): Promise<void> {
   try {
-    const dbName = generateDatabaseName(tenantSlug);
+    const dbName = sanitizeIdentifier(generateDatabaseName(tenantSlug));
     const adminUrl = process.env.POSTGRES_ADMIN_URL || process.env.MASTER_DATABASE_URL;
 
     if (!adminUrl) {
@@ -82,7 +94,7 @@ async function createPostgresDatabaseMode(tenantSlug: string): Promise<void> {
  */
 async function createPostgresSchema(tenantSlug: string): Promise<void> {
   try {
-    const schemaName = `tenant_${tenantSlug.replace(/-/g, '_')}`;
+    const schemaName = sanitizeIdentifier(`tenant_${tenantSlug.replace(/-/g, '_')}`);
     const adminUrl = process.env.POSTGRES_ADMIN_URL || process.env.MASTER_DATABASE_URL;
 
     if (!adminUrl) {
@@ -135,9 +147,10 @@ async function createPostgresSchema(tenantSlug: string): Promise<void> {
  * @param databaseUrl - Full connection string for the tenant database/schema
  */
 export async function runPrismaMigrations(databaseUrl: string): Promise<void> {
-  // Parse the schema name from the URL
+  // Parse and validate the schema name from the URL
   const urlObj = new URL(databaseUrl.replace("postgresql://", "http://"));
-  const schemaName = urlObj.searchParams.get("schema") || "public";
+  const rawSchemaName = urlObj.searchParams.get("schema") || "public";
+  const schemaName = rawSchemaName === "public" ? "public" : sanitizeIdentifier(rawSchemaName);
 
   const adminUrl = process.env.POSTGRES_ADMIN_URL || process.env.MASTER_DATABASE_URL;
   if (!adminUrl) {

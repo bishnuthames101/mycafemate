@@ -113,7 +113,7 @@ export async function PATCH(
   } catch (error: any) {
     logger.error("Update limits error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -168,7 +168,7 @@ export async function GET(
   } catch (error: any) {
     logger.error("Get limits error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

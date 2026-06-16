@@ -123,10 +123,13 @@ export const sensitiveRateLimit = createRateLimiter(30, "1 m", "sensitive");
 
 /**
  * Helper function to check rate limit and return response
+ *
+ * @param failClosed - If true, deny requests when rate limiter is unavailable (use for sensitive ops)
  */
 export async function checkRateLimit(
   limiter: any,
-  identifier: string
+  identifier: string,
+  failClosed: boolean = false
 ): Promise<{ allowed: boolean; response?: Response }> {
   try {
     const { success, remaining } = await limiter.limit(identifier);
@@ -152,7 +155,16 @@ export async function checkRateLimit(
     return { allowed: true };
   } catch (error) {
     logger.error("Rate limit check failed", error instanceof Error ? error : undefined);
-    // Fail open - allow request if rate limiting fails
+    if (failClosed) {
+      return {
+        allowed: false,
+        response: new Response(
+          JSON.stringify({ error: "Service temporarily unavailable" }),
+          { status: 503, headers: { "Content-Type": "application/json" } }
+        ),
+      };
+    }
+    // Fail open for non-sensitive operations to maintain availability
     return { allowed: true };
   }
 }

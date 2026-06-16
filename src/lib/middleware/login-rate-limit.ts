@@ -23,7 +23,11 @@ export async function checkLoginRateLimit(
     return { allowed: true };
   } catch (error) {
     logger.error("Login rate limit check failed", error instanceof Error ? error : undefined);
-    // Fail open - allow request if rate limiting fails
-    return { allowed: true };
+    // Fail closed - deny login attempts when rate limiter is unavailable
+    // This prevents brute-force attacks if Redis goes down
+    return {
+      allowed: false,
+      error: "Login temporarily unavailable. Please try again shortly.",
+    };
   }
 }

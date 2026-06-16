@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getTenantSlug } from "@/lib/utils/tenant-resolver";
 import { getMasterPrisma } from "@/lib/prisma-multi-tenant";
 import { logger } from '@/lib/utils/logger';
 
@@ -21,8 +20,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get tenant context
-    const tenantSlug = getTenantSlug();
+    // Get tenant context from authenticated session (not from host header)
+    const tenantSlug = session.user.tenantSlug;
     if (!tenantSlug) {
       return NextResponse.json(
         { error: "Tenant context not found" },
@@ -148,7 +147,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     logger.error("Usage statistics error", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

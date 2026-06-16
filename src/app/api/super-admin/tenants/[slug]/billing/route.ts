@@ -37,7 +37,7 @@ export async function GET(
   } catch (error: any) {
     logger.error("Error calculating tenant billing:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Failed to calculate billing" },
+      { error: "Failed to calculate billing" },
       { status: 500 }
     );
   }

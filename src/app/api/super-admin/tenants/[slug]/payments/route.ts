@@ -81,7 +81,7 @@ export async function POST(
   } catch (error: any) {
     logger.error("Payment recording error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
@@ -140,7 +140,7 @@ export async function GET(
   } catch (error: any) {
     logger.error("Payment listing error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

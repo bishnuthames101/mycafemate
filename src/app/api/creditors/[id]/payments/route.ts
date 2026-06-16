@@ -145,7 +145,7 @@ export async function POST(
 
     if (error.message === "Payment amount exceeds outstanding balance") {
       return NextResponse.json(
-        { error: error.message },
+        { error: "Payment amount exceeds outstanding balance" },
         { status: 400 }
       );
     }

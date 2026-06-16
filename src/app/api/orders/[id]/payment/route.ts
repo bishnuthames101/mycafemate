@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import { updatePaymentSchema, splitPaymentSchema } from "@/lib/validations/payment";
 import { revalidatePath } from "next/cache";
+import { logger } from '@/lib/utils/logger';
 
 export async function PATCH(
   request: NextRequest,
@@ -152,9 +153,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedOrder);
   } catch (error) {
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
+    logger.error("Payment update error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
       { error: "Failed to update payment" },
       { status: 500 }

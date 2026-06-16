@@ -170,7 +170,7 @@ export async function PATCH(
   } catch (error: any) {
     logger.error("Trial management error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

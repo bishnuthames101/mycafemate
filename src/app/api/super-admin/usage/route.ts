@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     logger.error("Usage statistics error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

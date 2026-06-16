@@ -60,7 +60,7 @@ export async function POST(
   } catch (error: any) {
     logger.error("Tenant suspension error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

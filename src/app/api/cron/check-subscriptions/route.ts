@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Internal server error",
+        error: "Internal server error",
         timestamp: new Date().toISOString(),
       },
       { status: 500 }
