@@ -76,6 +76,25 @@ export async function POST(
       );
     }
 
+    // Fetch actual product prices from DB to prevent price manipulation
+    const productIds = items.map(item => item.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, price: true },
+    });
+    const productPriceMap = new Map(products.map((p: any) => [p.id, p.price]));
+
+    for (const item of items) {
+      const dbPrice = productPriceMap.get(item.productId);
+      if (dbPrice === undefined) {
+        return NextResponse.json(
+          { error: `Product not found: ${item.productId}` },
+          { status: 400 }
+        );
+      }
+      item.price = dbPrice;
+    }
+
     // Validate inventory for new items
     const inventoryValidation = await validateInventoryForOrder(
       prisma,

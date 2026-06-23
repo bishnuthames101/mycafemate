@@ -11,7 +11,9 @@ export const MODIFIABLE_ORDER_STATUSES: OrderStatus[] = [
 // ID validation helper (accepts cuid, cuid2, uuid, and other common ID formats)
 const cuidSchema = z
   .string()
-  .min(1, "ID is required");
+  .min(1, "ID is required")
+  .max(128, "ID is too long")
+  .regex(/^[a-zA-Z0-9_-]+$/, "Invalid ID format");
 
 export const orderItemSchema = z.object({
   productId: cuidSchema,

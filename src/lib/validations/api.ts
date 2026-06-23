@@ -36,7 +36,9 @@ export const slugSchema = z
 
 export const cuidSchema = z
   .string()
-  .min(1, "ID is required");
+  .min(1, "ID is required")
+  .max(128, "ID is too long")
+  .regex(/^[a-zA-Z0-9_-]+$/, "Invalid ID format");
 
 // ============= ORDER VALIDATION =============
 

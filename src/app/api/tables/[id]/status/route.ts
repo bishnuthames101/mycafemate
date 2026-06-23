@@ -15,6 +15,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (session.user.role === "KITCHEN_STAFF") {
+      return NextResponse.json({ error: "Kitchen staff cannot manage tables" }, { status: 403 });
+    }
+
     const tenantSlug = session.user.tenantSlug;
     if (!tenantSlug) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 400 });

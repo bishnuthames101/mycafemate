@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
 
     const prisma = await getTenantPrisma(tenantSlug);
 
-    const { searchParams } = new URL(req.url);
-    const locationId = searchParams.get("locationId");
+    // Force kitchen staff to their own location
+    const locationId = session.user.locationId;
 
     if (!locationId) {
       return NextResponse.json(

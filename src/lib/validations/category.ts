@@ -12,6 +12,7 @@ export const createCategorySchema = z.object({
     .trim()
     .optional(),
   sortOrder: z.number().int().min(0).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const updateCategorySchema = createCategorySchema.partial();

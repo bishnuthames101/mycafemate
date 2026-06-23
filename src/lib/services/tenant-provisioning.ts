@@ -306,6 +306,15 @@ export async function deleteTenant(
       const dbName = generateDatabaseName(tenant.slug);
       const schemaName = `tenant_${tenant.slug.replace(/-/g, '_')}`;
 
+      // Validate generated identifiers before use in raw SQL
+      const identifierPattern = /^[a-z0-9_]+$/;
+      if (!identifierPattern.test(schemaName) || schemaName.length > 63) {
+        return { success: false, error: "Invalid schema name derived from tenant slug" };
+      }
+      if (!identifierPattern.test(dbName) || dbName.length > 63) {
+        return { success: false, error: "Invalid database name derived from tenant slug" };
+      }
+
       try {
         // Get admin database URL
         const adminUrl = process.env.POSTGRES_ADMIN_URL || process.env.MASTER_DATABASE_URL;

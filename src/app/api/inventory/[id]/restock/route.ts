@@ -4,6 +4,11 @@ import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import { restockInventory } from "@/lib/utils/inventory-management";
 import { logger } from '@/lib/utils/logger';
+import { z } from "zod";
+
+const restockSchema = z.object({
+  quantity: z.number().positive("Quantity must be positive").max(999999, "Quantity too large"),
+});
 
 export async function POST(
   request: NextRequest,
@@ -23,23 +28,22 @@ export async function POST(
     const prisma = await getTenantPrisma(tenantSlug);
 
     const body = await request.json();
-    const { quantity } = body;
+    const { quantity } = restockSchema.parse(body);
 
-    if (!quantity || quantity <= 0) {
-      return NextResponse.json(
-        { error: "Valid quantity is required" },
-        { status: 400 }
-      );
-    }
-
-    const result = await restockInventory(prisma, params.id, parseFloat(quantity));
+    const result = await restockInventory(prisma, params.id, quantity);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
     return NextResponse.json(result);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === "ZodError") {
+      return NextResponse.json(
+        { error: "Validation error", details: error.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`) },
+        { status: 400 }
+      );
+    }
     logger.error("Error restocking inventory", error instanceof Error ? error : undefined);
     return NextResponse.json({ error: "Failed to restock inventory" }, { status: 500 });
   }

@@ -3,6 +3,13 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import { logger } from '@/lib/utils/logger';
+import { z } from "zod";
+
+const createInventoryMasterSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100, "Name must not exceed 100 characters").trim(),
+  unit: z.string().min(1, "Unit is required").max(30, "Unit must not exceed 30 characters").trim(),
+  locationId: z.string().min(1, "Location ID is required"),
+});
 
 /**
  * Create a new master Inventory record
@@ -22,25 +29,24 @@ export async function POST(request: NextRequest) {
     const prisma = await getTenantPrisma(tenantSlug);
 
     const body = await request.json();
-    const { name, unit, locationId } = body;
-
-    if (!name || !unit || !locationId) {
-      return NextResponse.json(
-        { error: "name, unit, and locationId are required" },
-        { status: 400 }
-      );
-    }
+    const validatedData = createInventoryMasterSchema.parse(body);
 
     const inventory = await prisma.inventory.create({
       data: {
-        name,
-        unit,
-        locationId,
+        name: validatedData.name,
+        unit: validatedData.unit,
+        locationId: validatedData.locationId,
       },
     });
 
     return NextResponse.json(inventory, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === "ZodError") {
+      return NextResponse.json(
+        { error: "Validation error", details: error.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`) },
+        { status: 400 }
+      );
+    }
     logger.error("Error creating inventory", error instanceof Error ? error : undefined);
     return NextResponse.json(
       { error: "Failed to create inventory" },

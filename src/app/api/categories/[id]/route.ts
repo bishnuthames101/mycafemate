@@ -44,8 +44,8 @@ export async function PATCH(
     if (validatedData.sortOrder !== undefined) {
       updateData.sortOrder = validatedData.sortOrder;
     }
-    if (body.isActive !== undefined) {
-      updateData.isActive = body.isActive;
+    if (validatedData.isActive !== undefined) {
+      updateData.isActive = validatedData.isActive;
     }
 
     // Check slug uniqueness if slug is changing

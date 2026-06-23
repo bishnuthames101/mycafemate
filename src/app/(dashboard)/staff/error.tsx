@@ -17,7 +17,7 @@ export default function StaffError({
           <CardContent className="pt-6 text-center space-y-4">
             <h2 className="text-xl font-bold text-red-600">Something went wrong</h2>
             <p className="text-muted-foreground">
-              {error.message || "An unexpected error occurred. Please try again."}
+              An unexpected error occurred. Please try again.
             </p>
             <Button onClick={() => reset()}>Try again</Button>
           </CardContent>

@@ -21,7 +21,7 @@ async function checkAccountLockout(prisma: any, model: string, email: string) {
       password: true,
       name: true,
       role: true,
-      isActive: model === "superAdmin" ? true : undefined,
+      isActive: true,
       isTenantOwner: model === "user" ? true : undefined,
       locationId: model === "user" ? true : undefined,
       failedLoginAttempts: true,
@@ -185,6 +185,10 @@ export const authOptions: NextAuthOptions = {
           if (!user || !user.password) {
             await handleFailedLogin(tenantPrisma, "user", credentials.email);
             throw new Error("Invalid credentials");
+          }
+
+          if (user.isActive === false) {
+            throw new Error("Your account has been deactivated. Contact your administrator.");
           }
 
           const isValid = await bcrypt.compare(

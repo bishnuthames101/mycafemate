@@ -29,7 +29,11 @@ export default async function StaffDashboard() {
           <Card>
             <CardContent className="pt-6 text-center">
               <h2 className="text-xl font-bold text-red-600 mb-2">Unable to connect</h2>
-              <p className="text-muted-foreground">{error.message}</p>
+              <p className="text-muted-foreground">
+                {error.message?.includes("trial") || error.message?.includes("suspended") || error.message?.includes("payment")
+                  ? error.message
+                  : "Unable to connect to the service. Please try again later."}
+              </p>
             </CardContent>
           </Card>
         </div>

@@ -15,6 +15,11 @@ export default async function StaffLayout({
     redirect("/login");
   }
 
+  // Defense-in-depth: middleware also enforces this, but guard here too
+  if (session.user.role !== "STAFF" && session.user.role !== "ADMIN") {
+    redirect("/login");
+  }
+
   return (
     <>
       <InactivityLogout timeoutMinutes={15} />

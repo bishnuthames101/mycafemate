@@ -184,13 +184,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Non-paginated response (backward compatible)
+    // Non-paginated response (backward compatible, capped at 500 to prevent DoS)
     const orders = await prisma.order.findMany({
       where: whereClause,
       select: orderListSelect,
       orderBy: {
         createdAt: "desc",
       },
+      take: 500,
     });
 
     return NextResponse.json(orders);
@@ -230,6 +231,14 @@ export async function POST(request: NextRequest) {
 
     // Override client-provided staffId with authenticated user to prevent impersonation
     validatedData.staffId = session.user.id;
+
+    // STAFF can only create orders for their own location
+    if (session.user.role === "STAFF" && validatedData.locationId !== session.user.locationId) {
+      return NextResponse.json(
+        { error: "You can only create orders for your assigned location" },
+        { status: 403 }
+      );
+    }
 
     // Fetch actual product prices from DB to prevent price manipulation
     const productIds = validatedData.items.map(item => item.productId);

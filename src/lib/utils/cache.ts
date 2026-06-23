@@ -68,7 +68,7 @@ export function setCache<T>(key: string, data: T, ttl: number): void {
     sessionStorage.setItem(key, JSON.stringify(entry));
   } catch (error) {
     // Storage might be full or disabled, fail silently
-    console.warn('Failed to cache data:', error);
+    console.warn('Failed to cache data');
   }
 }
 

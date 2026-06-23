@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
     const prisma = await getTenantPrisma(tenantSlug);
 
     const { searchParams } = new URL(request.url);
-    const locationId = searchParams.get("locationId") || session.user.locationId;
+    const locationId = session.user.role === "ADMIN"
+      ? searchParams.get("locationId") || session.user.locationId
+      : session.user.locationId;
     const status = searchParams.get("status");
 
     const tables = await prisma.table.findMany({

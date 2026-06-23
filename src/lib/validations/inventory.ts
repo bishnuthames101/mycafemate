@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const cuidSchema = z.string().min(1, "ID is required");
+const cuidSchema = z.string().min(1, "ID is required").max(128, "ID is too long").regex(/^[a-zA-Z0-9_-]+$/, "Invalid ID format");
 
 const stockField = z
   .number({ invalid_type_error: "Must be a number" })

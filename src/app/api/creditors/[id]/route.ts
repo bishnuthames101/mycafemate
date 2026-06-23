@@ -20,6 +20,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (session.user.role === "KITCHEN_STAFF") {
+      return NextResponse.json({ error: "Kitchen staff cannot access creditors" }, { status: 403 });
+    }
+
     const tenantSlug = session.user.tenantSlug;
     if (!tenantSlug) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 400 });
@@ -116,6 +120,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (session.user.role === "KITCHEN_STAFF") {
+      return NextResponse.json({ error: "Kitchen staff cannot modify creditors" }, { status: 403 });
+    }
+
     const tenantSlug = session.user.tenantSlug;
     if (!tenantSlug) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 400 });
@@ -191,6 +199,10 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (session.user.role === "KITCHEN_STAFF") {
+      return NextResponse.json({ error: "Kitchen staff cannot delete creditors" }, { status: 403 });
     }
 
     const tenantSlug = session.user.tenantSlug;
