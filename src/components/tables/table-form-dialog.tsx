@@ -101,7 +101,6 @@ export function TableFormDialog({
         alert(error.error || "Failed to save table");
       }
     } catch (error) {
-      console.error("Error saving table:", error);
       alert("An error occurred");
     } finally {
       setIsSubmitting(false);

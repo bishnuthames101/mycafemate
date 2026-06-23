@@ -56,7 +56,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
         setOrder(data);
       }
     } catch (error) {
-      console.error("Error fetching order:", error);
+      console.error("Error fetching order");
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +79,7 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
         }
       }
     } catch (error) {
-      console.error("Error updating order:", error);
+      console.error("Error updating order");
     } finally {
       setIsUpdating(false);
     }
@@ -101,7 +101,6 @@ export default function AdminOrderDetailPage({ params }: { params: { id: string 
         alert("Failed to delete order");
       }
     } catch (error) {
-      console.error("Error deleting order:", error);
       alert("An error occurred");
     }
   };

@@ -71,7 +71,6 @@ export default function InventoryPage() {
         alert("Failed to restock inventory");
       }
     } catch (error) {
-      console.error("Error restocking:", error);
       alert("An error occurred");
     } finally {
       setRestockingId(null);
@@ -97,7 +96,6 @@ export default function InventoryPage() {
         alert("Failed to cleanup duplicates");
       }
     } catch (error) {
-      console.error("Error cleaning up:", error);
       alert("An error occurred");
     } finally {
       setCleaningUp(false);
@@ -125,7 +123,6 @@ export default function InventoryPage() {
         alert("Failed to delete inventory item");
       }
     } catch (error) {
-      console.error("Error deleting:", error);
       mutate();
       alert("An error occurred");
     }

@@ -54,7 +54,7 @@ export function NotificationBell({ locationId }: NotificationBellProps) {
       isFirstFetchRef.current = false;
       setUnreadCount(newCount);
     } catch (error) {
-      console.error("Error fetching unread count:", error);
+      console.error("Error fetching unread count");
     }
   }, [locationId]);
 

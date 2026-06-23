@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
+import { updateInventoryItemSchema } from "@/lib/validations/inventory";
+import { ZodError } from "zod";
 import { logger } from '@/lib/utils/logger';
 
 export async function GET(
@@ -58,14 +60,14 @@ export async function PATCH(
     const prisma = await getTenantPrisma(tenantSlug);
 
     const body = await request.json();
-    const { currentStock, minimumStock, maximumStock } = body;
+    const validatedData = updateInventoryItemSchema.parse(body);
 
     const updatedItem = await prisma.inventoryItem.update({
       where: { id: params.id },
       data: {
-        ...(currentStock !== undefined && { currentStock: parseFloat(currentStock) }),
-        ...(minimumStock !== undefined && { minimumStock: parseFloat(minimumStock) }),
-        ...(maximumStock !== undefined && { maximumStock: parseFloat(maximumStock) }),
+        ...(validatedData.currentStock !== undefined && { currentStock: validatedData.currentStock }),
+        ...(validatedData.minimumStock !== undefined && { minimumStock: validatedData.minimumStock }),
+        ...(validatedData.maximumStock !== undefined && { maximumStock: validatedData.maximumStock }),
       },
       include: {
         inventory: true,
@@ -75,6 +77,12 @@ export async function PATCH(
 
     return NextResponse.json(updatedItem);
   } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Validation error", details: error.errors.map(e => `${e.path.join('.')}: ${e.message}`) },
+        { status: 400 }
+      );
+    }
     logger.error("Error updating inventory item", error instanceof Error ? error : undefined);
     return NextResponse.json({ error: "Failed to update inventory item" }, { status: 500 });
   }

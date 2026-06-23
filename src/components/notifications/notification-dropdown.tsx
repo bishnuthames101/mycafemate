@@ -41,7 +41,7 @@ export function NotificationDropdown({
       const data = await response.json();
       setNotifications(data);
     } catch (error) {
-      console.error("Error fetching notifications:", error);
+      console.error("Error fetching notifications");
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export function NotificationDropdown({
         )
       );
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      console.error("Error marking notification as read");
     }
   };
 
@@ -85,7 +85,7 @@ export function NotificationDropdown({
         prev.map((n) => ({ ...n, isRead: true }))
       );
     } catch (error) {
-      console.error("Error marking all as read:", error);
+      console.error("Error marking all as read");
     }
   };
 

@@ -62,7 +62,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         setOrder(data);
       }
     } catch (error) {
-      console.error("Error fetching order:", error);
+      console.error("Error fetching order");
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +90,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         fetchOrder();
       }
     } catch (error) {
-      console.error("Error updating order:", error);
+      console.error("Error updating order");
       fetchOrder(); // Revert
     } finally {
       setIsUpdating(false);

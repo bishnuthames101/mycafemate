@@ -68,7 +68,7 @@ export function ChangeTableDialog({
         setTables(availableTables);
       }
     } catch (err) {
-      console.error("Failed to fetch tables:", err);
+      console.error("Failed to fetch tables");
     }
   };
 
@@ -103,7 +103,6 @@ export function ChangeTableDialog({
         setError(data.message || data.error || "Failed to change table");
       }
     } catch (err) {
-      console.error("Error changing table:", err);
       setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);

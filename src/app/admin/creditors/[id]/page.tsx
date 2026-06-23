@@ -88,7 +88,7 @@ export default function AdminCreditorDetailPage({ params }: { params: { id: stri
         router.push("/admin/creditors");
       }
     } catch (error) {
-      console.error("Error fetching creditor:", error);
+      console.error("Error fetching creditor");
     } finally {
       setIsLoading(false);
     }
@@ -124,7 +124,6 @@ export default function AdminCreditorDetailPage({ params }: { params: { id: stri
         alert(errorData.error || "Failed to delete creditor");
       }
     } catch (error) {
-      console.error("Error deleting creditor:", error);
       alert("Failed to delete creditor");
     } finally {
       setIsDeleting(false);

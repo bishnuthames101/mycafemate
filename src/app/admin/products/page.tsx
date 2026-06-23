@@ -78,7 +78,6 @@ export default function ProductsPage() {
       }
       mutate();
     } catch (error) {
-      console.error("Error deleting product:", error);
       mutate();
       alert("An error occurred");
     }

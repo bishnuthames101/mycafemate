@@ -26,10 +26,10 @@ import { logger } from '@/lib/utils/logger';
  */
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret (support Authorization header, x-cron-secret header, or query param)
+    // Verify cron secret (Authorization header or x-cron-secret header only)
+    // Query parameter support removed to prevent secret leakage via server logs
     const authHeader = request.headers.get("authorization");
     const cronSecretHeader = request.headers.get("x-cron-secret");
-    const querySecret = request.nextUrl.searchParams.get("secret");
     const cronSecret = process.env.CRON_SECRET;
 
     if (!cronSecret) {
@@ -42,8 +42,7 @@ export async function GET(request: NextRequest) {
 
     const isAuthorized =
       authHeader === `Bearer ${cronSecret}` ||
-      cronSecretHeader === cronSecret ||
-      querySecret === cronSecret;
+      cronSecretHeader === cronSecret;
 
     if (!isAuthorized) {
       return NextResponse.json(

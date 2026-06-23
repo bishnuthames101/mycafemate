@@ -97,33 +97,48 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const subscriptionStatus = searchParams.get("subscriptionStatus");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10) || 20));
 
     // Build filter
     const where: any = {};
     if (status) where.status = status;
     if (subscriptionStatus) where.subscriptionStatus = subscriptionStatus;
 
-    // Fetch tenants
-    const tenants = await masterPrisma.tenant.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        slug: true,
-        businessName: true,
-        contactEmail: true,
-        contactPhone: true,
-        subscriptionStatus: true,
-        subscriptionTier: true,
-        status: true,
-        trialEndsAt: true,
-        nextPaymentDue: true,
-        monthlyFee: true,
-        createdAt: true,
+    // Fetch tenants with pagination
+    const [tenants, total] = await Promise.all([
+      masterPrisma.tenant.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          slug: true,
+          businessName: true,
+          contactEmail: true,
+          contactPhone: true,
+          subscriptionStatus: true,
+          subscriptionTier: true,
+          status: true,
+          trialEndsAt: true,
+          nextPaymentDue: true,
+          monthlyFee: true,
+          createdAt: true,
+        },
+      }),
+      masterPrisma.tenant.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      tenants,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     });
-
-    return NextResponse.json({ tenants });
   } catch (error: any) {
     logger.error("Tenant listing error:", error instanceof Error ? error : undefined);
     return NextResponse.json(

@@ -25,7 +25,7 @@ export default withAuth(
     // ============= RATE LIMITING =============
     // Apply rate limiting to API routes and admin actions
     if (path.startsWith("/api/")) {
-      const identifier = req.ip ?? req.headers.get("x-forwarded-for") ?? "unknown";
+      const identifier = req.ip || "anonymous";
       const limiter = isSuperAdminDomain ? adminRateLimit : apiRateLimit;
 
       const rateCheck = await checkRateLimit(limiter, identifier);

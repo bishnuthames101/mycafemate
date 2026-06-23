@@ -69,10 +69,8 @@ export default function LoginPage() {
 
       // Use window.location.href for full page navigation
       const redirectUrl = `${window.location.protocol}//${currentHost}${redirectPath}`;
-      console.log("Redirecting to:", redirectUrl);
       window.location.href = redirectUrl;
     } catch (error) {
-      console.error("Login error:", error);
       setError("Something went wrong. Please try again.");
       setIsLoading(false);
     }

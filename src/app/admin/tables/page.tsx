@@ -74,7 +74,6 @@ export default function TablesPage() {
       }
       mutate();
     } catch (error) {
-      console.error("Error deleting table:", error);
       mutate();
       alert("An error occurred");
     }

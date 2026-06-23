@@ -107,7 +107,7 @@ export function InventoryFormDialog({
         setInventoryOptions(uniqueInventory as InventoryOption[]);
       }
     } catch (error) {
-      console.error("Error fetching inventory options:", error);
+      console.error("Error fetching inventory options");
     }
   };
 
@@ -139,7 +139,6 @@ export function InventoryFormDialog({
         alert("Failed to create inventory");
       }
     } catch (error) {
-      console.error("Error creating inventory:", error);
       alert("An error occurred");
     }
   };
@@ -178,7 +177,6 @@ export function InventoryFormDialog({
         alert(error.error || "Failed to save inventory item");
       }
     } catch (error) {
-      console.error("Error saving inventory item:", error);
       alert("An error occurred");
     } finally {
       setLoading(false);

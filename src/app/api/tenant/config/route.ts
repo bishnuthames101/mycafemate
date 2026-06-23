@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
+import { logger } from '@/lib/utils/logger';
 
 // Force dynamic rendering (uses headers for auth)
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export async function GET() {
       logoUrl: config.logoUrl,
     });
   } catch (error) {
-    console.error("Error fetching tenant config:", error);
+    logger.error("Error fetching tenant config", error instanceof Error ? error : undefined);
     return NextResponse.json(
       { error: "Failed to fetch config" },
       { status: 500 }

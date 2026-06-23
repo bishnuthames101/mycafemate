@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import bcrypt from "bcryptjs";
 import { logger } from '@/lib/utils/logger';
+import { passwordSchema } from "@/lib/validations/user";
 
 /**
  * PUT /api/admin/users/:userId/password
@@ -29,10 +30,11 @@ export async function PUT(
     const body = await request.json();
     const { currentPassword, newPassword } = body;
 
-    // Validation
-    if (!newPassword || newPassword.length < 6) {
+    // Validate new password strength using shared schema
+    const passwordResult = passwordSchema.safeParse(newPassword);
+    if (!passwordResult.success) {
       return NextResponse.json(
-        { error: "Password must be at least 6 characters" },
+        { error: passwordResult.error.errors[0].message },
         { status: 400 }
       );
     }
@@ -88,6 +90,20 @@ export async function PUT(
       where: { id: userId },
       data: { password: hashedPassword },
     });
+
+    // Audit trail: notify user when admin resets their password
+    if (!isOwnPassword) {
+      await prisma.notification.create({
+        data: {
+          type: "SYSTEM",
+          title: "Password Changed",
+          message: "Your password was reset by an administrator. If you did not request this, contact your admin immediately.",
+          userId: userId,
+          locationId: user.locationId,
+          priority: "HIGH",
+        },
+      }).catch(() => {}); // Don't fail the password change if notification fails
+    }
 
     return NextResponse.json({
       message: "Password updated successfully",

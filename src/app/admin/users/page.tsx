@@ -48,7 +48,7 @@ export default function UsersPage() {
         setUsers(data.users);
       }
     } catch (error) {
-      console.error("Failed to fetch users:", error);
+      console.error("Failed to fetch users");
     } finally {
       setLoading(false);
     }
@@ -111,7 +111,6 @@ export default function UsersPage() {
         setError(data.error || "Failed to update password");
       }
     } catch (error: any) {
-      console.error("Password change error:", error);
       setError(error?.message || "Network error. Please check your connection and try again.");
     } finally {
       setSubmitting(false);

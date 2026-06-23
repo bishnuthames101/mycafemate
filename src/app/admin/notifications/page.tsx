@@ -63,7 +63,7 @@ export default function NotificationsPage() {
       }
       setHasMore(data.length === PAGE_SIZE);
     } catch (error) {
-      console.error("Error fetching notifications:", error);
+      console.error("Error fetching notifications");
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -93,7 +93,7 @@ export default function NotificationsPage() {
         )
       );
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      console.error("Error marking notification as read");
     }
   };
 
@@ -108,7 +108,7 @@ export default function NotificationsPage() {
         prev.map((n) => ({ ...n, isRead: true }))
       );
     } catch (error) {
-      console.error("Error marking all as read:", error);
+      console.error("Error marking all as read");
     }
   };
 
@@ -121,7 +121,7 @@ export default function NotificationsPage() {
 
       setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
     } catch (error) {
-      console.error("Error deleting notification:", error);
+      console.error("Error deleting notification");
     }
   };
 

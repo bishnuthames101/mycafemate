@@ -228,6 +228,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createOrderSchema.parse(body);
 
+    // Override client-provided staffId with authenticated user to prevent impersonation
+    validatedData.staffId = session.user.id;
+
+    // Fetch actual product prices from DB to prevent price manipulation
+    const productIds = validatedData.items.map(item => item.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, price: true },
+    });
+    const productPriceMap = new Map(products.map(p => [p.id, p.price]));
+
+    // Verify all products exist and override client prices with DB prices
+    for (const item of validatedData.items) {
+      const dbPrice = productPriceMap.get(item.productId);
+      if (dbPrice === undefined) {
+        return NextResponse.json(
+          { error: `Product not found: ${item.productId}` },
+          { status: 400 }
+        );
+      }
+      item.price = dbPrice;
+    }
+
     // Validate inventory availability before creating order
     const inventoryCheck = await validateInventoryForOrder(
       prisma,
@@ -249,7 +272,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate totals
+    // Calculate totals using verified DB prices
     const subtotal = validatedData.items.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0

@@ -58,7 +58,7 @@ export function RecipeEditor({
         setInventoryOptions(uniqueInventory as Inventory[]);
       }
     } catch (error) {
-      console.error("Error fetching inventory:", error);
+      console.error("Error fetching inventory");
     } finally {
       setLoading(false);
     }

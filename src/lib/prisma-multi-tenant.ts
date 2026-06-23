@@ -39,14 +39,22 @@ export function getMasterPrisma(): MasterPrismaClient {
 
 // ============= TENANT DATABASE =============
 
+// ---- Cached tenant client with TTL ----
+interface CachedTenantClient {
+  client: PrismaClient;
+  cachedAt: number;
+}
+
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — re-validate subscription after this
+
 // Use globalThis to persist cache across hot reloads in development
 const globalForTenantClients = globalThis as unknown as {
-  tenantPrismaClients: Map<string, PrismaClient> | undefined;
+  tenantPrismaClients: Map<string, CachedTenantClient> | undefined;
   connectionCount: number | undefined;
 };
 
 // Cache for tenant database connections - persists in development
-const tenantPrismaClients = globalForTenantClients.tenantPrismaClients ?? new Map<string, PrismaClient>();
+const tenantPrismaClients = globalForTenantClients.tenantPrismaClients ?? new Map<string, CachedTenantClient>();
 if (!globalForTenantClients.tenantPrismaClients) {
   globalForTenantClients.tenantPrismaClients = tenantPrismaClients;
 }
@@ -66,19 +74,20 @@ const MAX_CONNECTIONS = 100; // Increased for Supabase Pro (500 connections avai
 export async function getTenantPrisma(
   tenantSlug: string
 ): Promise<PrismaClient> {
-  // Check cache first
-  if (tenantPrismaClients.has(tenantSlug)) {
-    return tenantPrismaClients.get(tenantSlug)!;
+  // Check cache — return immediately only if within TTL
+  const cached = tenantPrismaClients.get(tenantSlug);
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+    return cached.client;
   }
 
-  // Enforce connection limit
-  if (connectionCount >= MAX_CONNECTIONS) {
+  // Enforce connection limit (only for brand-new connections)
+  if (!cached && connectionCount >= MAX_CONNECTIONS) {
     throw new Error(
       `Maximum tenant connections (${MAX_CONNECTIONS}) reached. Please try again later.`
     );
   }
 
-  // Fetch tenant connection details from master DB
+  // Fetch tenant connection details from master DB (always, when TTL expired)
   const masterPrisma = getMasterPrisma();
   const tenant = await masterPrisma.tenant.findUnique({
     where: { slug: tenantSlug },
@@ -90,14 +99,18 @@ export async function getTenantPrisma(
       subscriptionStatus: true,
       businessName: true,
       nextPaymentDue: true,
+      trialEndsAt: true,
     },
   });
 
   if (!tenant) {
+    // Evict stale cache entry if tenant was deleted
+    if (cached) await evictCachedClient(tenantSlug, cached);
     throw new Error(`Tenant '${tenantSlug}' not found`);
   }
 
   if (!tenant.isActive) {
+    if (cached) await evictCachedClient(tenantSlug, cached);
     throw new Error(
       `Your account is inactive. Please contact support.`
     );
@@ -110,6 +123,7 @@ export async function getTenantPrisma(
 
   // Check subscription status
   if (!allowedSubscriptionStatuses.includes(tenant.subscriptionStatus)) {
+    if (cached) await evictCachedClient(tenantSlug, cached);
     let message = "";
 
     if (tenant.subscriptionStatus === "PAYMENT_DUE") {
@@ -128,8 +142,21 @@ export async function getTenantPrisma(
     throw new Error(message);
   }
 
+  // Check trial expiry date (TRIAL status may still be set even after trialEndsAt has passed)
+  if (
+    tenant.subscriptionStatus === "TRIAL" &&
+    tenant.trialEndsAt &&
+    new Date(tenant.trialEndsAt) < new Date()
+  ) {
+    if (cached) await evictCachedClient(tenantSlug, cached);
+    throw new Error(
+      "Your free trial has expired. Please contact support to activate your subscription."
+    );
+  }
+
   // Check tenant status
   if (!allowedTenantStatuses.includes(tenant.status)) {
+    if (cached) await evictCachedClient(tenantSlug, cached);
     let message = "";
 
     if (tenant.status === "SUSPENDED") {
@@ -147,6 +174,13 @@ export async function getTenantPrisma(
     throw new Error(message);
   }
 
+  // If we have a cached client that just needed re-validation, refresh its TTL
+  if (cached) {
+    cached.cachedAt = Date.now();
+    return cached.client;
+  }
+
+  // ---- First-time connection for this tenant ----
   // Decrypt database URL
   const decryptedUrl = decryptDatabaseUrl(tenant.databaseUrl);
 
@@ -168,12 +202,20 @@ export async function getTenantPrisma(
     log: process.env.NODE_ENV === 'development' ? ['error'] : [],
   });
 
-  // Cache the connection
-  tenantPrismaClients.set(tenantSlug, tenantPrisma);
+  // Cache the connection with timestamp
+  tenantPrismaClients.set(tenantSlug, { client: tenantPrisma, cachedAt: Date.now() });
   connectionCount++;
   globalForTenantClients.connectionCount = connectionCount;
 
   return tenantPrisma;
+}
+
+/** Evict a cached client and decrement connection count */
+async function evictCachedClient(slug: string, cached: CachedTenantClient): Promise<void> {
+  tenantPrismaClients.delete(slug);
+  connectionCount--;
+  globalForTenantClients.connectionCount = connectionCount;
+  try { await cached.client.$disconnect(); } catch { /* best-effort */ }
 }
 
 /**
@@ -181,9 +223,9 @@ export async function getTenantPrisma(
  * Used for cleanup or when a tenant is suspended
  */
 export async function disconnectTenant(tenantSlug: string): Promise<void> {
-  const client = tenantPrismaClients.get(tenantSlug);
-  if (client) {
-    await client.$disconnect();
+  const cached = tenantPrismaClients.get(tenantSlug);
+  if (cached) {
+    await cached.client.$disconnect();
     tenantPrismaClients.delete(tenantSlug);
     connectionCount--;
     globalForTenantClients.connectionCount = connectionCount;
@@ -196,8 +238,8 @@ export async function disconnectTenant(tenantSlug: string): Promise<void> {
  */
 export async function disconnectAllTenants(): Promise<void> {
   const disconnectPromises = Array.from(tenantPrismaClients.entries()).map(
-    async ([slug, client]) => {
-      await client.$disconnect();
+    async ([slug, cached]) => {
+      await cached.client.$disconnect();
       tenantPrismaClients.delete(slug);
     }
   );

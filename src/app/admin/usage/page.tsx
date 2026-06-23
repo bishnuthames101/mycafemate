@@ -78,7 +78,7 @@ export default function UsageDashboardPage() {
         setAlerts(data.alerts || []);
       }
     } catch (err: any) {
-      console.error("Failed to fetch alerts:", err);
+      console.error("Failed to fetch alerts");
     }
   };
 
@@ -95,7 +95,7 @@ export default function UsageDashboardPage() {
 
       fetchAlerts();
     } catch (err: any) {
-      console.error("Failed to mark alert as read:", err);
+      console.error("Failed to mark alert as read");
     }
   };
 

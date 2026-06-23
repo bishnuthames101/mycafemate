@@ -32,7 +32,9 @@ const withPWA = require("@ducanh2912/next-pwa").default({
         },
       },
       {
-        urlPattern: /^https:\/\/.*\/api\/.*$/i,
+        // Only cache non-sensitive API endpoints (products, categories, tables)
+        // Excludes: orders, users, auth, admin, super-admin, cron, notifications, creditors, inventory
+        urlPattern: /^https:\/\/.*\/api\/(?:products|categories|tables|tenant\/config)(?:\?.*)?$/i,
         handler: "NetworkFirst",
         options: {
           cacheName: "api-cache",
@@ -99,7 +101,7 @@ const nextConfig = {
 
     const ContentSecurityPolicy = `
       default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval';
+      script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''};
       style-src 'self' 'unsafe-inline';
       img-src 'self' data: https: blob:;
       font-src 'self' data:;

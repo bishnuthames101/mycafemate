@@ -66,7 +66,6 @@ export default function CategoriesPage() {
       }
       mutateCategories();
     } catch (error) {
-      console.error("Error deleting category:", error);
       mutateCategories();
       alert("An error occurred");
     }

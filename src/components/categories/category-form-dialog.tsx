@@ -66,7 +66,6 @@ export function CategoryFormDialog({
         alert(error.error || "Failed to save category");
       }
     } catch (error) {
-      console.error("Error saving category:", error);
       alert("An error occurred");
     } finally {
       setIsSubmitting(false);

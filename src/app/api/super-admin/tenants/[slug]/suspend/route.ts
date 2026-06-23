@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { suspendTenant } from "@/lib/services/tenant-provisioning";
-import { getMasterPrisma } from "@/lib/prisma-multi-tenant";
+import { getMasterPrisma, disconnectTenant } from "@/lib/prisma-multi-tenant";
 import { logger } from '@/lib/utils/logger';
 
 /**
@@ -52,6 +52,9 @@ export async function POST(
 
     // Suspend the tenant
     await suspendTenant(tenant.id, reason);
+
+    // Evict cached DB connection so the tenant is blocked immediately
+    await disconnectTenant(params.slug);
 
     return NextResponse.json({
       success: true,

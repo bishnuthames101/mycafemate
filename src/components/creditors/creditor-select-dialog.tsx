@@ -56,7 +56,7 @@ export function CreditorSelectDialog({
         setSearchResults(data);
       }
     } catch (error) {
-      console.error("Error searching creditors:", error);
+      console.error("Error searching creditors");
     } finally {
       setLoading(false);
     }

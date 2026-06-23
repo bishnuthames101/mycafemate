@@ -85,7 +85,7 @@ export function AddItemsDialog({
         setCache(CACHE_KEYS.PRODUCTS, data, CACHE_TTL.PRODUCTS);
       }
     } catch (err) {
-      console.error("Failed to fetch products:", err);
+      console.error("Failed to fetch products");
     }
   };
 
@@ -102,7 +102,7 @@ export function AddItemsDialog({
         setCache(CACHE_KEYS.CATEGORIES, categoryOptions, CACHE_TTL.CATEGORIES);
       }
     } catch (err) {
-      console.error("Failed to fetch categories:", err);
+      console.error("Failed to fetch categories");
     }
   };
 
@@ -183,7 +183,6 @@ export function AddItemsDialog({
         }
       }
     } catch (err) {
-      console.error("Error adding items:", err);
       setError("An error occurred. Please try again.");
     } finally {
       setIsLoading(false);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { reactivateTenant } from "@/lib/services/tenant-provisioning";
-import { getMasterPrisma } from "@/lib/prisma-multi-tenant";
+import { getMasterPrisma, disconnectTenant } from "@/lib/prisma-multi-tenant";
 import { logger } from '@/lib/utils/logger';
 
 /**
@@ -41,6 +41,9 @@ export async function POST(
 
     // Reactivate the tenant
     await reactivateTenant(tenant.id);
+
+    // Evict cached DB connection so the tenant picks up new status
+    await disconnectTenant(params.slug);
 
     return NextResponse.json({
       success: true,

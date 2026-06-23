@@ -35,7 +35,6 @@ export interface ProvisionTenantResult {
   success: boolean;
   tenantId?: string;
   slug?: string;
-  databaseUrl?: string;
   loginUrl?: string;
   credentials?: TenantCredentials;
   error?: string;
@@ -195,7 +194,7 @@ export async function provisionNewTenant(
       success: true,
       tenantId: tenant.id,
       slug: tenant.slug,
-      databaseUrl: databaseUrl, // Return unencrypted for display
+      // databaseUrl intentionally omitted - never expose raw DB URLs in API responses
       loginUrl,
       credentials, // Include credentials for display to super admin
     };

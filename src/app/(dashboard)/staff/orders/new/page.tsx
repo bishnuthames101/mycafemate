@@ -112,7 +112,6 @@ export default function NewOrderPage() {
         }
       }
     } catch (error) {
-      console.error("Error creating order:", error);
       alert("An error occurred");
     } finally {
       setIsLoading(false);

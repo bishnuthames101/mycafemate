@@ -193,7 +193,6 @@ export function PaymentFlowDialog({
         router.push("/staff/orders");
       }
     } catch (error) {
-      console.error("Error processing payment:", error);
       alert(error instanceof Error ? error.message : "Failed to process payment. Please try again.");
     } finally {
       setIsProcessing(false);
@@ -226,7 +225,6 @@ export function PaymentFlowDialog({
         router.push("/staff/orders");
       }
     } catch (error) {
-      console.error("Error cancelling order:", error);
       alert("Failed to cancel order. Please try again.");
     } finally {
       setIsProcessing(false);

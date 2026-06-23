@@ -115,7 +115,7 @@ export function ProductFormDialog({
         );
       }
     } catch (error) {
-      console.error("Error fetching recipes:", error);
+      console.error("Error fetching recipes");
       setRecipeItems([]);
     }
   };
@@ -155,7 +155,6 @@ export function ProductFormDialog({
         alert(error.error || "Failed to save product");
       }
     } catch (error) {
-      console.error("Error saving product:", error);
       alert("An error occurred");
     } finally {
       setIsSubmitting(false);
