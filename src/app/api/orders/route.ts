@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
     const tableId = searchParams.get("tableId");
 
     // Pagination parameters
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
     const rawLimit = parseInt(searchParams.get("limit") || "0", 10);
     const limit = rawLimit > 0 ? Math.min(50, rawLimit) : 0;
     const paginated = limit > 0; // Only paginate if limit is explicitly set
