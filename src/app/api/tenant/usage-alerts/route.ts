@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     if (action === "mark-read") {
       if (alertId) {
         // Mark specific alert as read
-        await markAlertAsRead(alertId);
+        await markAlertAsRead(alertId, tenantSlug);
       } else {
         // Mark all alerts as read
         await markAllAlertsAsRead(tenantSlug);

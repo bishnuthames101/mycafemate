@@ -154,11 +154,21 @@ export async function getActiveAlerts(tenantSlug: string): Promise<UsageAlertDat
 /**
  * Mark alert as read
  */
-export async function markAlertAsRead(alertId: string): Promise<void> {
+export async function markAlertAsRead(alertId: string, tenantSlug: string): Promise<void> {
   const masterPrisma = getMasterPrisma();
 
-  await masterPrisma.usageAlert.update({
-    where: { id: alertId },
+  // Verify alert belongs to the tenant before updating
+  const tenant = await masterPrisma.tenant.findUnique({
+    where: { slug: tenantSlug },
+    select: { id: true },
+  });
+
+  if (!tenant) {
+    throw new Error("Tenant not found");
+  }
+
+  await masterPrisma.usageAlert.updateMany({
+    where: { id: alertId, tenantId: tenant.id },
     data: { isRead: true },
   });
 }

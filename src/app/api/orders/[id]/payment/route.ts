@@ -44,6 +44,14 @@ export async function PATCH(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    // STAFF can only process payments for orders at their assigned location
+    if (session.user.role === "STAFF" && existingOrder.locationId !== session.user.locationId) {
+      return NextResponse.json(
+        { error: "You can only process payments for orders at your assigned location" },
+        { status: 403 }
+      );
+    }
+
     // Handle split payment
     if (body.isSplitPayment === true) {
       return handleSplitPayment(prisma, orderId, existingOrder, body);

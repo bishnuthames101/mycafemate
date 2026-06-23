@@ -4,9 +4,6 @@ import { authOptions } from "@/lib/auth";
 import { getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import {
   getNotifications,
-  getUnreadCount,
-  markAsRead,
-  markAllAsRead,
   deleteNotification,
 } from "@/lib/services/notification-service";
 import { logger } from '@/lib/utils/logger';
@@ -69,16 +66,35 @@ export async function PATCH(request: NextRequest) {
     const prisma = await getTenantPrisma(tenantSlug);
 
     const body = await request.json();
-    const { notificationIds, isRead } = body;
+    const { notificationIds } = body;
 
-    if (!notificationIds || !Array.isArray(notificationIds)) {
+    if (!notificationIds || !Array.isArray(notificationIds) || notificationIds.length === 0) {
       return NextResponse.json(
         { error: "notificationIds array is required" },
         { status: 400 }
       );
     }
 
-    await markAsRead(prisma, notificationIds);
+    // Limit batch size to prevent abuse
+    if (notificationIds.length > 100) {
+      return NextResponse.json(
+        { error: "Cannot update more than 100 notifications at once" },
+        { status: 400 }
+      );
+    }
+
+    // Scope to user's location so they can't mark other locations' notifications
+    const locationId = session.user.role === "ADMIN"
+      ? undefined
+      : session.user.locationId;
+
+    await prisma.notification.updateMany({
+      where: {
+        id: { in: notificationIds },
+        ...(locationId && { locationId }),
+      },
+      data: { isRead: true },
+    });
 
     return NextResponse.json({ message: "Notifications marked as read successfully" });
   } catch (error) {
@@ -108,6 +124,23 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json(
         { error: "Notification ID is required" },
         { status: 400 }
+      );
+    }
+
+    // Verify ownership: notification must belong to user's location (ADMIN can delete any)
+    const notification = await prisma.notification.findUnique({
+      where: { id: notificationId },
+      select: { locationId: true },
+    });
+
+    if (!notification) {
+      return NextResponse.json({ error: "Notification not found" }, { status: 404 });
+    }
+
+    if (session.user.role !== "ADMIN" && notification.locationId !== session.user.locationId) {
+      return NextResponse.json(
+        { error: "You can only delete notifications at your assigned location" },
+        { status: 403 }
       );
     }
 

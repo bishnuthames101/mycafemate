@@ -26,15 +26,32 @@ export async function PATCH(
 
     const prisma = await getTenantPrisma(tenantSlug);
 
+    // STAFF can only update tables at their assigned location
+    if (session.user.role === "STAFF") {
+      const table = await prisma.table.findUnique({
+        where: { id: params.id },
+        select: { locationId: true },
+      });
+      if (!table) {
+        return NextResponse.json({ error: "Table not found" }, { status: 404 });
+      }
+      if (table.locationId !== session.user.locationId) {
+        return NextResponse.json(
+          { error: "You can only update tables at your assigned location" },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
     const { status } = updateTableStatusSchema.parse(body);
 
-    const table = await prisma.table.update({
+    const updatedTable = await prisma.table.update({
       where: { id: params.id },
       data: { status },
     });
 
-    return NextResponse.json(table);
+    return NextResponse.json(updatedTable);
   } catch (error: any) {
     logger.error("Error updating table status:", error instanceof Error ? error : undefined);
     if (error.name === "ZodError") {

@@ -3,7 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getMasterPrisma, getTenantPrisma } from "@/lib/prisma-multi-tenant";
 import { USAGE_LIMITS } from "@/lib/constants/usage-limits";
+import { createUserSchema } from "@/lib/validations/api";
 import bcrypt from "bcryptjs";
+import { ZodError } from "zod";
 import { logger } from '@/lib/utils/logger';
 
 /**
@@ -44,9 +46,17 @@ export async function GET(
     // Get tenant database connection
     const tenantPrisma = await getTenantPrisma(params.slug);
 
-    // Fetch all users from tenant DB
+    // Fetch all users from tenant DB (exclude password hash)
     const users = await tenantPrisma.user.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isTenantOwner: true,
+        locationId: true,
+        createdAt: true,
+        updatedAt: true,
         location: {
           select: { id: true, name: true },
         },
@@ -112,55 +122,9 @@ export async function POST(
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     }
 
-    // Parse request body
+    // Parse and validate request body using shared schema
     const body = await request.json();
-    const { name, email, password, role, locationId } = body;
-
-    // Validation
-    if (!name || typeof name !== "string" || name.length < 2) {
-      return NextResponse.json(
-        { error: "Name must be at least 2 characters" },
-        { status: 400 }
-      );
-    }
-
-    if (!email || typeof email !== "string") {
-      return NextResponse.json(
-        { error: "Email is required" },
-        { status: 400 }
-      );
-    }
-
-    // Validate email format
-    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "Invalid email format" },
-        { status: 400 }
-      );
-    }
-
-    if (!password || typeof password !== "string" || password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters" },
-        { status: 400 }
-      );
-    }
-
-    // Validate password contains letter and number
-    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      return NextResponse.json(
-        { error: "Password must contain at least one letter and one number" },
-        { status: 400 }
-      );
-    }
-
-    if (!role || !["ADMIN", "STAFF", "KITCHEN_STAFF"].includes(role)) {
-      return NextResponse.json(
-        { error: "Invalid role. Must be ADMIN, STAFF, or KITCHEN_STAFF" },
-        { status: 400 }
-      );
-    }
+    const { name, email, password, role, locationId } = createUserSchema.parse(body);
 
     // Get tenant database
     const tenantPrisma = await getTenantPrisma(params.slug);
@@ -259,6 +223,12 @@ export async function POST(
       },
     });
   } catch (error: any) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Validation error", details: error.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`) },
+        { status: 400 }
+      );
+    }
     logger.error("Create user error:", error instanceof Error ? error : undefined);
     return NextResponse.json(
       { error: "Internal server error" },

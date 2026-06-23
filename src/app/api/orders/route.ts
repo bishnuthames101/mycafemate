@@ -105,10 +105,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(orders);
     }
 
-    // Admin can view all locations if no locationId param is provided
-    const locationId = searchParams.get("locationId") === null && session.user.role === "ADMIN"
-      ? null
-      : searchParams.get("locationId") || session.user.locationId;
+    // STAFF must use their assigned location; ADMIN can view all or filter
+    const locationId = session.user.role === "ADMIN"
+      ? searchParams.get("locationId") || null
+      : session.user.locationId;
     const status = searchParams.get("status");
     const tableId = searchParams.get("tableId");
 

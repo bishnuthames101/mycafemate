@@ -17,6 +17,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // KITCHEN_STAFF cannot access creditors
+    if (session.user.role === "KITCHEN_STAFF") {
+      return NextResponse.json(
+        { error: "Kitchen staff cannot access creditors" },
+        { status: 403 }
+      );
+    }
+
     const tenantSlug = session.user.tenantSlug;
     if (!tenantSlug) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 400 });

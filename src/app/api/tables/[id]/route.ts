@@ -42,6 +42,11 @@ export async function GET(
       return NextResponse.json({ error: "Table not found" }, { status: 404 });
     }
 
+    // STAFF can only view tables at their assigned location
+    if (session.user.role === "STAFF" && table.locationId !== session.user.locationId) {
+      return NextResponse.json({ error: "Table not found" }, { status: 404 });
+    }
+
     return NextResponse.json(table);
   } catch (error) {
     logger.error("Error fetching table:", error instanceof Error ? error : undefined);
