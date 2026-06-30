@@ -39,6 +39,8 @@ model User {
   location      Location? @relation(fields: [locationId], references: [id])
   orders        Order[]
   creditPayments CreditPayment[]
+  employeeProfile EmployeeProfile?
+  payrollRuns     PayrollRun[]
 
   // Account security
   failedLoginAttempts Int       @default(0)
@@ -69,10 +71,12 @@ model Location {
   users       User[]
   tables      Table[]
   orders      Order[]
-  inventory   Inventory[]
-  creditors   Creditor[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  inventory         Inventory[]
+  creditors         Creditor[]
+  employeeProfiles  EmployeeProfile[]
+  payrollRuns       PayrollRun[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   @@index([isActive])
 }
@@ -384,4 +388,92 @@ enum NotificationPriority {
   NORMAL
   HIGH
   URGENT
+}
+
+// ============= PAYROLL MANAGEMENT =============
+model EmployeeProfile {
+  id              String          @id @default(cuid())
+  userId          String          @unique
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationId      String
+  location        Location        @relation(fields: [locationId], references: [id])
+  department      String          @default("General")
+  designation     String?
+  payType         PayType         @default(MONTHLY)
+  baseSalary      Float
+  bankName        String?
+  bankAccountNo   String?
+  bankBranch      String?
+  joiningDate     DateTime        @db.Date
+  isActive        Boolean         @default(true)
+  notes           String?
+  payrollRecords  PayrollRecord[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([locationId])
+  @@index([isActive])
+  @@index([department])
+}
+
+enum PayType {
+  MONTHLY
+  DAILY
+}
+
+model PayrollRun {
+  id              String           @id @default(cuid())
+  periodLabel     String
+  periodStart     DateTime         @db.Date
+  periodEnd       DateTime         @db.Date
+  locationId      String?
+  location        Location?        @relation(fields: [locationId], references: [id])
+  status          PayrollRunStatus @default(DRAFT)
+  totalGross      Float            @default(0)
+  totalDeductions Float            @default(0)
+  totalNet        Float            @default(0)
+  employeeCount   Int              @default(0)
+  notes           String?
+  processedById   String
+  processedBy     User             @relation(fields: [processedById], references: [id])
+  records         PayrollRecord[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([periodLabel, locationId])
+  @@index([periodLabel])
+  @@index([status])
+  @@index([locationId, periodLabel])
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  PROCESSED
+  PAID
+}
+
+model PayrollRecord {
+  id                String          @id @default(cuid())
+  payrollRunId      String
+  payrollRun        PayrollRun      @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employeeProfileId String
+  employeeProfile   EmployeeProfile @relation(fields: [employeeProfileId], references: [id])
+  baseSalary        Float
+  daysWorked        Int?
+  overtime          Float           @default(0)
+  bonus             Float           @default(0)
+  allowance         Float           @default(0)
+  grossPay          Float
+  deductionSSF      Float           @default(0)
+  deductionTax      Float           @default(0)
+  deductionAdvance  Float           @default(0)
+  deductionOther    Float           @default(0)
+  deductionNotes    String?
+  totalDeductions   Float           @default(0)
+  netPay            Float
+  createdAt         DateTime        @default(now())
+
+  @@unique([payrollRunId, employeeProfileId])
+  @@index([payrollRunId])
+  @@index([employeeProfileId])
 }

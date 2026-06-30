@@ -7,12 +7,14 @@ export const CACHE_KEYS = {
   PRODUCTS: 'cm_products',
   CATEGORIES: 'cm_categories',
   TABLES: 'cm_tables',
+  EMPLOYEES: 'cm_employees',
 } as const;
 
 export const CACHE_TTL = {
   PRODUCTS: 5 * 60 * 1000,     // 5 minutes - products change moderately
   CATEGORIES: 30 * 60 * 1000,  // 30 minutes - categories rarely change
   TABLES: 2 * 60 * 1000,       // 2 minutes - table status changes frequently
+  EMPLOYEES: 5 * 60 * 1000,    // 5 minutes - employee data changes infrequently
 } as const;
 
 interface CacheEntry<T> {

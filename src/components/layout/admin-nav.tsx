@@ -17,7 +17,8 @@ import {
   UserPlus,
   Tag,
   Coffee,
-  UtensilsCrossed
+  UtensilsCrossed,
+  Wallet
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter as useNextRouter } from "next/navigation";
@@ -45,6 +46,7 @@ const navItems: NavItem[] = [
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/inventory", label: "Inventory", icon: Package },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/payroll", label: "Payroll", icon: Wallet },
 ];
 
 export function AdminNav({ user }: AdminNavProps) {
