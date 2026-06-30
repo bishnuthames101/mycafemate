@@ -57,7 +57,7 @@ export function usePayrollRuns(options: UsePayrollRunsOptions = {}) {
   });
 
   return {
-    runs: data ?? [],
+    runs: Array.isArray(data) ? data : [],
     isLoading,
     isValidating,
     error,

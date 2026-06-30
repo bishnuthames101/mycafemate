@@ -83,7 +83,7 @@ export function useEmployees(options: UseEmployeesOptions = {}) {
   );
 
   return {
-    employees: data ?? [],
+    employees: Array.isArray(data) ? data : [],
     isLoading,
     isValidating,
     error,
