@@ -63,7 +63,8 @@ export function EmployeeFormDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: users } = useSWR<User[]>(open ? "/api/admin/users" : null);
+  const { data: usersData } = useSWR<{ users: User[] }>(open ? "/api/admin/users" : null);
+  const users = usersData?.users;
   const { data: locations } = useSWR<Location[]>(open ? "/api/locations" : null);
   const { data: existingEmployees } = useSWR<any[]>(
     open && !employee ? "/api/payroll/employees?isActive=" : null
