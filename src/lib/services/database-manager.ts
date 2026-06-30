@@ -189,6 +189,8 @@ export async function runPrismaMigrations(databaseUrl: string): Promise<void> {
         "DAILY_REPORT", "SYSTEM"
       ]},
       { name: "NotificationPriority", values: ["LOW", "NORMAL", "HIGH", "URGENT"] },
+      { name: "PayType", values: ["MONTHLY", "DAILY"] },
+      { name: "PayrollRunStatus", values: ["DRAFT", "PROCESSED", "PAID"] },
     ];
 
     for (const e of enums) {
@@ -505,6 +507,88 @@ export async function runPrismaMigrations(databaseUrl: string): Promise<void> {
       CREATE INDEX IF NOT EXISTS "Notification_locationId_idx" ON "${schemaName}"."Notification"("locationId");
       CREATE INDEX IF NOT EXISTS "Notification_userId_idx" ON "${schemaName}"."Notification"("userId");
       CREATE INDEX IF NOT EXISTS "Notification_priority_isRead_idx" ON "${schemaName}"."Notification"("priority", "isRead");
+    `);
+
+    // Payroll tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."EmployeeProfile" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "userId" TEXT NOT NULL,
+        "locationId" TEXT NOT NULL,
+        "department" TEXT NOT NULL DEFAULT 'General',
+        "designation" TEXT,
+        "payType" "${schemaName}"."PayType" NOT NULL DEFAULT 'MONTHLY',
+        "baseSalary" DOUBLE PRECISION NOT NULL,
+        "bankName" TEXT,
+        "bankAccountNo" TEXT,
+        "bankBranch" TEXT,
+        "joiningDate" DATE NOT NULL,
+        "isActive" BOOLEAN NOT NULL DEFAULT true,
+        "notes" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "EmployeeProfile_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "EmployeeProfile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "${schemaName}"."User"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "EmployeeProfile_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "${schemaName}"."Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "EmployeeProfile_userId_key" ON "${schemaName}"."EmployeeProfile"("userId");
+      CREATE INDEX IF NOT EXISTS "EmployeeProfile_locationId_idx" ON "${schemaName}"."EmployeeProfile"("locationId");
+      CREATE INDEX IF NOT EXISTS "EmployeeProfile_isActive_idx" ON "${schemaName}"."EmployeeProfile"("isActive");
+      CREATE INDEX IF NOT EXISTS "EmployeeProfile_department_idx" ON "${schemaName}"."EmployeeProfile"("department");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."PayrollRun" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "periodLabel" TEXT NOT NULL,
+        "periodStart" DATE NOT NULL,
+        "periodEnd" DATE NOT NULL,
+        "locationId" TEXT,
+        "status" "${schemaName}"."PayrollRunStatus" NOT NULL DEFAULT 'DRAFT',
+        "totalGross" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "totalDeductions" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "totalNet" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "employeeCount" INTEGER NOT NULL DEFAULT 0,
+        "notes" TEXT,
+        "processedById" TEXT NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "PayrollRun_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "PayrollRun_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "${schemaName}"."Location"("id") ON DELETE SET NULL ON UPDATE CASCADE,
+        CONSTRAINT "PayrollRun_processedById_fkey" FOREIGN KEY ("processedById") REFERENCES "${schemaName}"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "PayrollRun_periodLabel_locationId_key" ON "${schemaName}"."PayrollRun"("periodLabel", "locationId");
+      CREATE INDEX IF NOT EXISTS "PayrollRun_periodLabel_idx" ON "${schemaName}"."PayrollRun"("periodLabel");
+      CREATE INDEX IF NOT EXISTS "PayrollRun_status_idx" ON "${schemaName}"."PayrollRun"("status");
+      CREATE INDEX IF NOT EXISTS "PayrollRun_locationId_periodLabel_idx" ON "${schemaName}"."PayrollRun"("locationId", "periodLabel");
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "${schemaName}"."PayrollRecord" (
+        "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
+        "payrollRunId" TEXT NOT NULL,
+        "employeeProfileId" TEXT NOT NULL,
+        "baseSalary" DOUBLE PRECISION NOT NULL,
+        "daysWorked" INTEGER,
+        "overtime" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "bonus" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "allowance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "grossPay" DOUBLE PRECISION NOT NULL,
+        "deductionSSF" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "deductionTax" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "deductionAdvance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "deductionOther" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "deductionNotes" TEXT,
+        "totalDeductions" DOUBLE PRECISION NOT NULL DEFAULT 0,
+        "netPay" DOUBLE PRECISION NOT NULL,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "PayrollRecord_pkey" PRIMARY KEY ("id"),
+        CONSTRAINT "PayrollRecord_payrollRunId_fkey" FOREIGN KEY ("payrollRunId") REFERENCES "${schemaName}"."PayrollRun"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "PayrollRecord_employeeProfileId_fkey" FOREIGN KEY ("employeeProfileId") REFERENCES "${schemaName}"."EmployeeProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "PayrollRecord_payrollRunId_employeeProfileId_key" ON "${schemaName}"."PayrollRecord"("payrollRunId", "employeeProfileId");
+      CREATE INDEX IF NOT EXISTS "PayrollRecord_payrollRunId_idx" ON "${schemaName}"."PayrollRecord"("payrollRunId");
+      CREATE INDEX IF NOT EXISTS "PayrollRecord_employeeProfileId_idx" ON "${schemaName}"."PayrollRecord"("employeeProfileId");
     `);
 
     logger.info(`Schema tables applied successfully to ${schemaName}`);

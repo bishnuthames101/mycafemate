@@ -156,8 +156,8 @@ describe("POST /api/payroll/runs", () => {
     // Mock transaction — the $transaction callback receives a transaction prisma
     const txPrisma = createMockPrisma();
     txPrisma.payrollRun.create.mockResolvedValue({
-      id: "run-new",
       ...samplePayrollRun,
+      id: "run-new",
     });
     txPrisma.payrollRecord.createMany.mockResolvedValue({ count: 2 });
     txPrisma.payrollRun.findUnique.mockResolvedValue({
